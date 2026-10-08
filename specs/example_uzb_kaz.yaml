@@ -1,0 +1,166 @@
+# Example spec, written by hand to show the format.
+# From Phase 2 on, the request step drafts files like this from a plain-English request.
+#
+# The World Bank (wdi) codes below were checked against the live WDI catalog on 2026-10-08.
+# The PWT 11.0 variables are checked against the labels in the PWT Stata file when it is
+# first downloaded (Phase 2); the build stops if any unit or base year here disagrees.
+# Employment counts by sector come from ILOSTAT, which is added in Phase 5; until then
+# this example uses the WDI sector shares of total employment.
+
+spec_version: 1
+name: uzb_kaz_sectoral
+title: Uzbekistan and Kazakhstan, sectoral growth inputs, 2000-2023
+request: >-
+  Uzbekistan and Kazakhstan, 2000-2023: real value added and employment by broad sector,
+  gross fixed capital formation, labor share
+confirmed: false            # change to true after reviewing; build refuses drafts
+
+countries: [UZB, KAZ]
+years: {start: 2000, end: 2023}
+sector_classification: isic4_3sector    # AGR (ISIC A), IND (B-F), SER (G-U)
+source_choice: same_for_all              # each variable comes from one source for every country
+
+variables:
+  # --- Real value added by broad sector (World Bank WDI)
+  - name: va_agr_real
+    label: Value added, agriculture, forestry and fishing (constant 2015 US$)
+    sector: AGR
+    measure: level
+    sources:
+      - source: wdi
+        code: NV.AGR.TOTL.KD
+        unit: constant 2015 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2015
+
+  - name: va_ind_real
+    label: Value added, industry incl. construction (constant 2015 US$)
+    sector: IND
+    measure: level
+    sources:
+      - source: wdi
+        code: NV.IND.TOTL.KD
+        unit: constant 2015 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2015
+
+  - name: va_ser_real
+    label: Value added, services (constant 2015 US$)
+    sector: SER
+    measure: level
+    sources:
+      - source: wdi
+        code: NV.SRV.TOTL.KD
+        unit: constant 2015 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2015
+
+  # --- Employment by broad sector (WDI, modeled ILO estimates, % of total employment)
+  - name: emp_share_agr
+    label: Employment in agriculture (% of total employment, modeled ILO estimate)
+    sector: AGR
+    measure: percent
+    sources:
+      - source: wdi
+        code: SL.AGR.EMPL.ZS
+        unit: "% of total employment"
+        price_basis: not_applicable
+
+  - name: emp_share_ind
+    label: Employment in industry (% of total employment, modeled ILO estimate)
+    sector: IND
+    measure: percent
+    sources:
+      - source: wdi
+        code: SL.IND.EMPL.ZS
+        unit: "% of total employment"
+        price_basis: not_applicable
+
+  - name: emp_share_ser
+    label: Employment in services (% of total employment, modeled ILO estimate)
+    sector: SER
+    measure: percent
+    sources:
+      - source: wdi
+        code: SL.SRV.EMPL.ZS
+        unit: "% of total employment"
+        price_basis: not_applicable
+
+  # --- Investment and GDP (WDI)
+  - name: gfcf_real
+    label: Gross fixed capital formation (constant 2015 US$)
+    measure: level
+    sources:
+      - source: wdi
+        code: NE.GDI.FTOT.KD
+        unit: constant 2015 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2015
+
+  - name: gdp_real_wdi
+    label: GDP (constant 2015 US$), WDI
+    measure: level
+    sources:
+      - source: wdi
+        code: NY.GDP.MKTP.KD
+        unit: constant 2015 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2015
+
+  # --- Penn World Table 11.0
+  - name: gdp_real_pwt
+    label: Real GDP at constant national prices (mil. 2021 US$), PWT 11.0
+    measure: level
+    sources:
+      - source: pwt
+        dataset: "11.0"
+        code: rgdpna
+        unit: millions of 2021 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2021
+
+  - name: emp_pwt
+    label: Number of persons engaged (millions), PWT 11.0
+    measure: level
+    sources:
+      - source: pwt
+        dataset: "11.0"
+        code: emp
+        unit: millions of persons
+        price_basis: not_applicable
+
+  - name: capital_real_pwt
+    label: Capital stock at constant national prices (mil. 2021 US$), PWT 11.0
+    measure: level
+    sources:
+      - source: pwt
+        dataset: "11.0"
+        code: rnna
+        unit: millions of 2021 US$
+        currency: USD
+        price_basis: constant
+        base_year: 2021
+
+  - name: labor_share_pwt
+    label: Share of labour compensation in GDP at current national prices, PWT 11.0
+    measure: share
+    sources:
+      - source: pwt
+        dataset: "11.0"
+        code: labsh
+        unit: share of GDP (0 to 1)
+        price_basis: current
+
+# Overlap check: the same concept from two sources. The build reports years where
+# real GDP growth in WDI and PWT differs by more than the threshold.
+comparisons:
+  - a: gdp_real_wdi
+    b: gdp_real_pwt
+    compare: growth
+    threshold: 1.0          # percentage points

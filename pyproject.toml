@@ -1,0 +1,9 @@
+[project]
+name = "econ-data-pipeline"
+version = "0.1.0"
+description = "Builds documented country-year panels from official statistics."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

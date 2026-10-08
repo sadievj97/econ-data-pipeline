@@ -1,0 +1,27 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Data stays on this computer: the download cache, hand-downloaded files, and outputs.
+# Notes on where manual files came from (*.md) are kept in git.
+data/raw/
+data/manual/*
+!data/manual/*.md
+out/
+
+# Claude Code personal settings
+.claude/settings.local.json

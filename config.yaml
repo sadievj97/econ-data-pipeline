@@ -1,0 +1,15 @@
+# Settings for the data pipeline. Safe to edit.
+# Never put keys here: they go in .env, which git ignores.
+
+# The Claude model used only to turn your request into a draft spec.
+# It never sees, produces, or edits data values.
+models:
+  spec_drafting: claude-opus-5-5
+  effort: high          # how hard it thinks: low, medium, high, xhigh, max
+  max_tokens: 16000
+
+# Folders, relative to this project folder.
+paths:
+  raw_cache: data/raw     # every download, saved once with a timestamp, never modified
+  manual: data/manual     # files downloaded by hand, each with a note on where it came from
+  outputs: out            # results go in out/<spec name>/
