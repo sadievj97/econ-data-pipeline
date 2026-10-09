@@ -2,10 +2,24 @@
 
 import argparse
 import sys
+import textwrap
+from datetime import date
 from pathlib import Path
 
 from . import __version__
+from .cache import CacheIntegrityError, RawCache
+from .config import Config, load_config
+from .connectors import SourceError, Sources
+from .net import DownloadError, make_client
+from .paths import PROJECT_ROOT, SPECS_DIR
 from .spec import SpecError, describe_spec, load_spec
+
+SOURCE_PROBLEMS = (SourceError, DownloadError, CacheIntegrityError)
+
+
+def open_sources(config: Config) -> Sources:
+    cache = RawCache(config.folder("raw_cache"))
+    return Sources(cache, make_client(config.http.timeout_seconds), attempts=config.http.attempts)
 
 
 def cmd_check_setup(args: argparse.Namespace) -> int:
@@ -14,14 +28,6 @@ def cmd_check_setup(args: argparse.Namespace) -> int:
     text, ok = report()
     print(text)
     return 0 if ok else 1
-
-
-def cmd_request(args: argparse.Namespace) -> int:
-    print(
-        "The request step arrives in Phase 2: it needs the WDI and PWT indicator catalogs to search.\n"
-        "For now, specs/example_uzb_kaz.yaml shows what a spec looks like."
-    )
-    return 1
 
 
 def cmd_check_spec(args: argparse.Namespace) -> int:
@@ -38,6 +44,175 @@ def cmd_check_spec(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_search(args: argparse.Namespace) -> int:
+    from .catalog import search
+
+    sources = open_sources(load_config())
+    try:
+        hits = search(sources.get(args.source).catalog().values(), args.query, args.limit)
+    except SOURCE_PROBLEMS as exc:
+        print(exc)
+        return 1
+    finally:
+        sources.close()
+    if not hits:
+        print(f"No {args.source} indicators match '{args.query}'. Try other words.")
+        return 1
+    for h in hits:
+        basis = h.unit.price_basis or "price basis not stated"
+        year = f", base year {h.unit.base_year}" if h.unit.base_year else ""
+        print(f"{h.code}  {h.name}")
+        print(f"    unit: {h.unit.text or 'not stated'} ({basis}{year})")
+        if h.definition and h.definition != h.name:
+            print(textwrap.fill(h.definition[:400], width=100, initial_indent="    ", subsequent_indent="    "))
+        print()
+    return 0
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    from .fetching import coverage, fetch_spec
+
+    try:
+        spec = load_spec(args.spec)
+    except SpecError as exc:
+        print(exc)
+        return 1
+    config = load_config()
+    sources = open_sources(config)
+    print(f"Fetching {spec.name}: {len(spec.countries)} countries, {len(spec.variables)} variables.")
+    print("Files already in data/raw/ are reused." if not args.refresh else "Downloading everything again (--refresh).")
+    try:
+        reports = fetch_spec(spec, sources, refresh=args.refresh)
+    finally:
+        sources.close()
+
+    errors = warnings = skipped = 0
+    for r in reports:
+        print()
+        print(f"{r.variable}  {r.ref.source} {r.ref.code}")
+        if r.skipped:
+            skipped += 1
+            print(f"    skipped: {r.skipped}")
+            continue
+        if r.series is not None:
+            cov = coverage(r.series, spec)
+            print(f"    values in {spec.years.start}-{spec.years.end}: {cov.with_values} of {cov.expected}")
+            for iso3, years in cov.missing.items():
+                print(f"    missing for {iso3}: {_year_ranges(years)}")
+            print(f"    source unit: {r.series.info.unit.text or 'not stated'}")
+            print(f"    raw file: {r.series.raw[0].relative_file()}"
+                  + (f" (+{len(r.series.raw) - 1} more)" if len(r.series.raw) > 1 else ""))
+        for e in r.errors:
+            errors += 1
+            print(f"    PROBLEM: {e}")
+        for w in r.warnings:
+            warnings += 1
+            print(f"    check: {w}")
+    print()
+    print(f"Done: {len(reports) - skipped} series fetched, {errors} problem(s), {warnings} thing(s) to check, "
+          f"{skipped} skipped.")
+    if errors:
+        print("Fix each PROBLEM in the spec (or choose another code) before building.")
+    return 1 if errors else 0
+
+
+def _year_ranges(years: list[int]) -> str:
+    parts, start = [], None
+    for i, y in enumerate(years):
+        if start is None:
+            start = y
+        if i + 1 == len(years) or years[i + 1] != y + 1:
+            parts.append(str(start) if start == y else f"{start}-{y}")
+            start = None
+    return ", ".join(parts)
+
+
+def _free_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    n = 2
+    while path.with_name(f"{path.stem}_{n}{path.suffix}").exists():
+        n += 1
+    return path.with_name(f"{path.stem}_{n}{path.suffix}")
+
+
+def cmd_request(args: argparse.Namespace) -> int:
+    import anthropic
+
+    from .drafting import SEARCHABLE, DraftError, draft_spec, draft_yaml, review_markdown
+    from .envfile import MissingKeyError, get_key
+
+    config = load_config()
+    try:
+        key = get_key("ANTHROPIC_API_KEY")
+    except MissingKeyError as exc:
+        print(exc)
+        return 1
+
+    sources = open_sources(config)
+    try:
+        print("Loading the WDI and PWT 11.0 catalogs (downloaded once, then reused from data/raw/)...")
+        for name in SEARCHABLE:
+            sources.get(name).catalog()
+        print(f"Asking {config.models.spec_drafting} to draft a spec:")
+        client = anthropic.Anthropic(api_key=key, max_retries=3)
+        result = draft_spec(args.text, client=client, config=config, sources=sources)
+    except anthropic.AuthenticationError:
+        print("The Anthropic API did not accept the key on the ANTHROPIC_API_KEY line of .env. "
+              "Check it was pasted completely, or create a new key.")
+        return 1
+    except anthropic.PermissionDeniedError:
+        print("The Anthropic API key in .env is not allowed to use this model. Check your account settings.")
+        return 1
+    except anthropic.RateLimitError:
+        print("The Anthropic API is busy or your account hit a usage limit. Wait a minute and try again.")
+        return 1
+    except anthropic.APIConnectionError:
+        print("Could not reach the Anthropic API. Check the internet connection and try again.")
+        return 1
+    except anthropic.APIStatusError as exc:
+        print(f"The Anthropic API returned an error (HTTP {exc.status_code}): {exc.message}")
+        return 1
+    except DraftError as exc:
+        print(exc)
+        return 1
+    except SOURCE_PROBLEMS as exc:
+        print(exc)
+        return 1
+    finally:
+        sources.close()
+
+    spec_path = _free_path(Path(args.out) if args.out else SPECS_DIR / f"{result.spec['name']}.yaml")
+    review_path = spec_path.with_name(f"{spec_path.stem}.review.md")
+    today = date.today().isoformat()
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(draft_yaml(result, review_path.name, today), encoding="utf-8")
+    review_path.write_text(review_markdown(result, spec_path.name, today), encoding="utf-8")
+
+    print()
+    print(f"Draft spec: {spec_path}")
+    print(f"Review notes (definitions and alternatives): {review_path}")
+    print()
+    for v in result.spec["variables"]:
+        codes = ", ".join(f"{s['source']} {s['code']}" for s in v["sources"])
+        print(f"  {v['name']}: {codes}")
+    if result.to_fill:
+        print()
+        print("Fill in by hand (marked FILL_ME in the file):")
+        for item in result.to_fill:
+            print(f"  - {item}")
+    if result.open_questions:
+        print()
+        print("Questions for you:")
+        for q in result.open_questions:
+            print(textwrap.fill(q, width=100, initial_indent="  - ", subsequent_indent="    "))
+    print()
+    shown = spec_path.relative_to(PROJECT_ROOT) if spec_path.is_relative_to(PROJECT_ROOT) else spec_path
+    print(f"Next: review the files, then run  .\\pipeline check-spec {shown}")
+    print(f"(Claude used {result.tokens.get('input', 0):,} input and {result.tokens.get('output', 0):,} output tokens.)")
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     try:
         spec = load_spec(args.spec)
@@ -50,7 +225,8 @@ def cmd_build(args: argparse.Namespace) -> int:
             "Review it, change 'confirmed: false' to 'confirmed: true', then run build again."
         )
         return 1
-    print("The spec is valid and confirmed. Fetching data arrives in Phase 2, so nothing was built yet.")
+    print("The spec is valid and confirmed. Harmonizing and writing outputs arrive in Phases 3 and 4;\n"
+          f"for now, '.\\pipeline fetch {args.spec}' downloads and checks the raw data.")
     return 1
 
 
@@ -65,14 +241,25 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("check-setup", help="show what is installed and whether keys are in place (never shows keys)")
     p.set_defaults(func=cmd_check_setup)
 
-    p = sub.add_parser("request", help="turn a plain-English request into a draft spec")
+    p = sub.add_parser("request", help="turn a plain-English request into a draft spec (uses Claude)")
     p.add_argument("text", help="your request, in quotes")
-    p.add_argument("--out", help="where to save the draft spec")
+    p.add_argument("--out", help="where to save the draft spec (default: specs/<name>.yaml)")
     p.set_defaults(func=cmd_request)
+
+    p = sub.add_parser("search", help="search a source's indicator catalog")
+    p.add_argument("source", choices=["wdi", "pwt"])
+    p.add_argument("query", help="words to look for, in quotes")
+    p.add_argument("--limit", type=int, default=10)
+    p.set_defaults(func=cmd_search)
 
     p = sub.add_parser("check-spec", help="check a spec file and summarize it")
     p.add_argument("spec", help="path to a spec .yaml file")
     p.set_defaults(func=cmd_check_spec)
+
+    p = sub.add_parser("fetch", help="download (or reuse cached) raw data for a spec and check units")
+    p.add_argument("spec", help="path to a spec .yaml file")
+    p.add_argument("--refresh", action="store_true", help="download again even if cached files exist")
+    p.set_defaults(func=cmd_fetch)
 
     p = sub.add_parser("build", help="fetch, validate, harmonize and write outputs for a confirmed spec")
     p.add_argument("spec", help="path to a confirmed spec .yaml file")

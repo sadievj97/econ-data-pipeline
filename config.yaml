@@ -8,6 +8,17 @@ models:
   effort: high          # how hard it thinks: low, medium, high, xhigh, max
   max_tokens: 16000
 
+# Downloads.
+http:
+  timeout_seconds: 120
+  attempts: 4           # tries per download before giving up
+
+# Default thresholds the request step writes into new specs (you can change them per spec).
+checks:
+  comparison_threshold:
+    growth: 1.0         # percentage points of annual growth
+    level: 5.0          # percent difference in levels
+
 # Folders, relative to this project folder.
 paths:
   raw_cache: data/raw     # every download, saved once with a timestamp, never modified

@@ -19,6 +19,20 @@ class ModelSettings(_Strict):
     max_tokens: int = Field(16000, gt=0)
 
 
+class HttpSettings(_Strict):
+    timeout_seconds: float = Field(120.0, gt=0)
+    attempts: int = Field(4, ge=1)
+
+
+class Thresholds(_Strict):
+    growth: float = Field(1.0, gt=0)
+    level: float = Field(5.0, gt=0)
+
+
+class CheckSettings(_Strict):
+    comparison_threshold: Thresholds = Thresholds()
+
+
 class PathSettings(_Strict):
     raw_cache: str = "data/raw"
     manual: str = "data/manual"
@@ -27,6 +41,8 @@ class PathSettings(_Strict):
 
 class Config(_Strict):
     models: ModelSettings
+    http: HttpSettings = HttpSettings()
+    checks: CheckSettings = CheckSettings()
     paths: PathSettings = PathSettings()
 
     def folder(self, name: Literal["raw_cache", "manual", "outputs"]) -> Path:

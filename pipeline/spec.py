@@ -25,6 +25,8 @@ SPEC_VERSION = 1
 FIXED_SOURCES = ("wdi", "pwt", "ilostat", "imf", "faostat", "comtrade", "manual")
 NATIONAL_SOURCE = re.compile(r"^nso_[a-z]{3}$")  # a national statistics office, e.g. nso_uzb
 
+LOCAL_CURRENCY = "LCU"  # each country's own currency, as in WDI's "constant LCU"
+
 # Codes some sources use that are not in ISO 3166-1.
 EXTRA_COUNTRY_CODES = {"XKX": "Kosovo"}
 
@@ -93,8 +95,11 @@ class SourceRef(_Strict):
         if v is None:
             return v
         v = v.upper()
-        if pycountry.currencies.get(alpha_3=v) is None:
-            raise ValueError(f"'{v}' is not an ISO 4217 currency code (for example USD, UZS, KZT)")
+        if v != LOCAL_CURRENCY and pycountry.currencies.get(alpha_3=v) is None:
+            raise ValueError(
+                f"'{v}' is not an ISO 4217 currency code (for example USD, UZS, KZT), "
+                f"or {LOCAL_CURRENCY} for each country's own currency"
+            )
         return v
 
     @model_validator(mode="after")

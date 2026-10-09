@@ -1,2 +1,5 @@
 # Windows batch files need Windows line endings.
 *.cmd text eol=crlf
+
+# Test fixtures are raw source files: keep their bytes exactly as saved.
+tests/fixtures/** -text
