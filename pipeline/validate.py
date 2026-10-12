@@ -20,6 +20,7 @@ from .events import Event
 from .harmonize import Panel, VariableResult, duplicate_keys, unit_of, year_ranges
 from .known_values import KnownValue, KnownValueResult, same_value
 from .numbers import fmt, plural
+from .spec import Variable
 
 
 @dataclass(frozen=True)
@@ -73,33 +74,54 @@ def _growth(row: np.ndarray) -> np.ndarray:
     return g
 
 
+@dataclass(frozen=True)
+class RangeRule:
+    """Allowed values: low <= x (or low < x when low_strict), and x <= high."""
+
+    low: float | None
+    high: float | None
+    low_strict: bool
+    text: str
+
+    def breaks(self, x: np.ndarray) -> np.ndarray:
+        with np.errstate(invalid="ignore"):
+            bad = np.zeros(len(x), dtype=bool)
+            if self.low is not None:
+                bad |= (x <= self.low) if self.low_strict else (x < self.low)
+            if self.high is not None:
+                bad |= x > self.high
+        return ~np.isnan(x) & bad
+
+
+def range_rule(v: Variable, config: Config) -> RangeRule | None:
+    """The range check for one variable. The R and Stata scripts apply the same rules."""
+    if v.valid_range is not None:
+        lo, hi = v.valid_range
+        return RangeRule(lo, hi, False, f"the spec's valid_range [{lo:g}, {hi:g}]")
+    if v.measure in ("share", "percent", "growth_rate"):
+        lo, hi = getattr(config.checks.plausible_range, v.measure)
+        return RangeRule(lo, hi, False, f"the plausible range for a {v.measure} [{lo:g}, {hi:g}] in config.yaml")
+    if v.allow_negative:
+        return None
+    if v.measure == "index":
+        return RangeRule(0.0, None, True, "an index must be above zero")
+    return RangeRule(0.0, None, False, "a level must not be negative (set allow_negative: true if it can be)")
+
+
 def check_ranges(panel: Panel, config: Config) -> list[Finding]:
-    defaults = config.checks.plausible_range
     findings = []
     for name, r in panel.results.items():
-        v = r.variable
-        if v.valid_range is not None:
-            lo, hi, rule = v.valid_range[0], v.valid_range[1], f"the spec's valid_range {list(v.valid_range)}"
-            bad = lambda x, lo=lo, hi=hi: (x < lo) | (x > hi)  # noqa: E731
-        elif v.measure in ("share", "percent", "growth_rate"):
-            lo, hi = getattr(defaults, v.measure)
-            rule = f"the plausible range for a {v.measure} [{lo:g}, {hi:g}] in config.yaml"
-            bad = lambda x, lo=lo, hi=hi: (x < lo) | (x > hi)  # noqa: E731
-        elif v.allow_negative:
+        rule = range_rule(r.variable, config)
+        if rule is None:
             continue
-        elif v.measure == "index":
-            rule, bad = "an index must be above zero", lambda x: x <= 0  # noqa: E731
-        else:
-            rule, bad = "a level must not be negative (set allow_negative: true if it can be)", lambda x: x < 0  # noqa: E731
         for ci, c in enumerate(r.countries):
             row = r.values[ci]
-            with np.errstate(invalid="ignore"):
-                hits = ~np.isnan(row) & bad(row)
+            hits = rule.breaks(row)
             if hits.any():
                 years = [r.years[i] for i in np.flatnonzero(hits)]
                 lo_v, hi_v = float(np.nanmin(row[hits])), float(np.nanmax(row[hits]))
                 findings.append(Finding("error", "range", name, c,
-                                        f"{len(years)} value(s) break {rule}: years {year_ranges(years)} "
+                                        f"{len(years)} value(s) break {rule.text}: years {year_ranges(years)} "
                                         f"(from {fmt(lo_v, r.precision)} to {fmt(hi_v, r.precision)})"))
     return findings
 

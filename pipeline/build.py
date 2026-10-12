@@ -20,6 +20,7 @@ from .events import Event
 from .fetching import fetch_spec
 from .harmonize import Panel, harmonize
 from .known_values import known_values_path, load_known_values
+from .outputs import remove_stale_outputs, write_outputs
 from .report import missing_csv, validation_markdown
 from .spec import Spec
 from .validate import Finding, ValidationReport, validate
@@ -54,6 +55,7 @@ class BuildResult:
     report: ValidationReport
     out_dir: Path
     written: list[Path] = field(default_factory=list)
+    removed: list[Path] = field(default_factory=list)
     lock_file: Path | None = None
     lock_changed: bool = False
 
@@ -96,13 +98,21 @@ def run_build(spec_path: Path, spec: Spec, sources: Sources, config: Config, eve
 
     out_dir = config.folder("outputs") / spec.name
     out_dir.mkdir(parents=True, exist_ok=True)
-    retrieved = sorted({s.retrieved_at[:10] for s in used.values()})
+    retrieved = sorted({s.retrieved_at for s in used.values()}) or ["2000-01-01T00:00:00Z"]
     result = BuildResult(spec, panel, report, out_dir)
     result.written += [
-        _write(out_dir / "validation_report.md", validation_markdown(panel, report, retrieved)),
+        _write(out_dir / "validation_report.md", validation_markdown(panel, report, sorted({r[:10] for r in retrieved}))),
         _write(out_dir / "missing_data.csv", missing_csv(report)),
-        _write(out_dir / "data_log.md", log.markdown(spec.title)),
     ]
+    if report.errors:
+        result.removed = remove_stale_outputs(out_dir)
+        log.add("Outputs", "not written, because validation found errors"
+                + (f"; removed panel files left by an earlier build: {', '.join(p.name for p in result.removed)}"
+                   if result.removed else ""))
+    else:
+        progress("Writing outputs...")
+        result.written += write_outputs(panel, report, config, out_dir, retrieved, log)
+    result.written.append(_write(out_dir / "data_log.md", log.markdown(spec.title)))
 
     if not any(f.check == "fetch" for f in report.errors):
         path = lock_path(spec_path)

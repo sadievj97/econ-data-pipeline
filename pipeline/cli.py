@@ -269,12 +269,16 @@ def cmd_build(args: argparse.Namespace) -> int:
     for path in result.written:
         shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
         print(f"Wrote {shown}")
+    for path in result.removed:
+        print(f"Removed {path.name} left by an earlier build (it no longer matches a passing validation)")
     if result.lock_changed and result.lock_file is not None:
         print(f"Pinned the raw files used in {result.lock_file.name} (later builds reuse exactly these).")
     if report.errors:
-        print("The build FAILED validation: fix the errors above (details in validation_report.md).")
+        print("The build FAILED validation, so no panel files were written. Fix the errors above "
+              "(details in validation_report.md).")
         return 1
-    print("Validation passed. Panel files (CSV, parquet, .dta) and the R and Stata scripts arrive in Phase 4.")
+    shown = result.out_dir.relative_to(PROJECT_ROOT) if result.out_dir.is_relative_to(PROJECT_ROOT) else result.out_dir
+    print(f"Validation passed. To recheck the panel in R or Stata, run load_and_check.R or load_and_check.do in {shown}.")
     return 0
 
 

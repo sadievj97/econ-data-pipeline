@@ -13,6 +13,7 @@ from pipeline.cache import RawCache
 from pipeline.config import PathSettings, load_config
 from pipeline.connectors import Sources
 from pipeline.events import load_events
+from pipeline.outputs import PANEL_FILES
 from pipeline.spec import parse_spec
 
 from .conftest import FIXTURES
@@ -54,7 +55,8 @@ def fresh_sources(cache_root, internet, pins=None):
 def test_build_passes_and_writes_reports_and_a_lock(spec_file, sources, config):
     result = build(spec_file, sources, config)
     assert result.report.errors == [], result.report.errors
-    assert sorted(p.name for p in result.written) == ["data_log.md", "missing_data.csv", "validation_report.md"]
+    assert sorted(p.name for p in result.written) == sorted(
+        PANEL_FILES + ("data_log.md", "missing_data.csv", "validation_report.md"))
     assert result.lock_changed and lock_path(spec_file).exists()
     report = (result.out_dir / "validation_report.md").read_text(encoding="utf-8")
     assert "**PASSED**" in report and "gdp_real_wdi vs gdp_real_pwt" in report
