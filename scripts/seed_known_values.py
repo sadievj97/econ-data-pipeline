@@ -35,14 +35,16 @@ from pipeline.known_values import known_values_path  # noqa: E402
 from pipeline.spec import load_spec  # noqa: E402
 
 # (variable in the spec, source, code, country, year). For ILO, code is (SDMX dataflow, series key).
-# Two PWT picks (labsh KAZ 2010, emp UZB 2019) were replaced on 2026-10-12 while the PWT
-# Dataverse was down; "pwt" picks still work if added back.
+# Two PWT picks were replaced on 2026-10-12 while the PWT Dataverse was down. The PWT pick below
+# is read from PWT's Excel workbook; while the Dataverse is unreachable it is skipped and the
+# other values are still written.
 PICKS = [
     ("va_agr", "wdi", "NV.AGR.TOTL.KD", "UZB", 2015),
     ("va_ser", "wdi", "NV.SRV.TOTL.KD", "KAZ", 2020),
     ("gfcf", "wdi", "NE.GDI.FTOT.KD", "UZB", 2023),
     ("va_ind", "wdi", "NV.IND.TOTL.KD", "KAZ", 2010),
     ("emp_agr", "ilo_sdmx", ("DF_EMP_2EMP_SEX_ECO_NB", "UZB.A..SEX_T.ECO_SECTOR_AGR"), "UZB", 2019),
+    ("labsh", "pwt", "labsh", "KAZ", 2010),
 ]
 ILO_SDMX = "https://sdmx.ilo.org/rest/data"
 
