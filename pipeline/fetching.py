@@ -15,6 +15,7 @@ from .units import compare
 @dataclass
 class FetchReport:
     variable: str
+    index: int  # position of ref in the variable's sources (0 = preferred)
     ref: SourceRef
     series: FetchedSeries | None = None
     errors: list[str] = field(default_factory=list)
@@ -46,8 +47,8 @@ def fetch_spec(spec: Spec, sources: Sources, refresh: bool = False,
                progress: Callable[[str], None] = lambda _: None) -> list[FetchReport]:
     reports = []
     for variable in spec.variables:
-        for ref in variable.sources:
-            report = FetchReport(variable.name, ref)
+        for index, ref in enumerate(variable.sources):
+            report = FetchReport(variable.name, index, ref)
             progress(f"  {variable.name}: {ref.source} {ref.code}")
             try:
                 report.series = sources.fetch(ref, spec.countries, refresh)

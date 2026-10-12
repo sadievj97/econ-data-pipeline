@@ -28,6 +28,10 @@ class CacheIntegrityError(RuntimeError):
     pass
 
 
+class PinnedSnapshotMissing(CacheIntegrityError):
+    pass
+
+
 def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
@@ -76,8 +80,14 @@ class Snapshot:
 
 
 class RawCache:
-    def __init__(self, root: Path):
+    """pins maps a key to the snapshot id a spec's lock file recorded; latest()
+    then returns that snapshot instead of the newest. used records every
+    snapshot handed out or stored, so a build can write its lock file."""
+
+    def __init__(self, root: Path, pins: dict[str, str] | None = None):
         self.root = root
+        self.pins = dict(pins or {})
+        self.used: dict[str, Snapshot] = {}
 
     def _key_dir(self, key: str) -> Path:
         parts = key.split("/")
@@ -97,8 +107,20 @@ class RawCache:
         return found
 
     def latest(self, key: str) -> Snapshot | None:
-        snaps = self.snapshots(key)
-        return snaps[-1] if snaps else None
+        if key in self.pins:
+            try:
+                snap = self.get(key, self.pins[key])
+            except FileNotFoundError:
+                raise PinnedSnapshotMissing(
+                    f"The lock file pins {key} to snapshot {self.pins[key]}, which is no longer in "
+                    f"{self.root}. Restore it, or rebuild with --refresh (results may then change)."
+                ) from None
+        else:
+            snaps = self.snapshots(key)
+            snap = snaps[-1] if snaps else None
+        if snap is not None:
+            self.used[key] = snap
+        return snap
 
     def get(self, key: str, snapshot_id: str) -> Snapshot:
         for snap in self.snapshots(key):
@@ -140,4 +162,6 @@ class RawCache:
         os.replace(tmp, final)
         for f in (final / filename, final / "meta.json"):
             os.chmod(f, stat.S_IREAD)
-        return Snapshot(key, final, record)
+        snap = Snapshot(key, final, record)
+        self.used[key] = snap
+        return snap

@@ -1,0 +1,25 @@
+# Known values for uzb_kaz_sectoral_2000_2023.yaml. The build checks that the panel matches each one exactly
+# (at the source's own precision). These were copied by scripts/seed_known_values.py from
+# official files the pipeline does not otherwise read, as an independent check.
+# Replace or extend them with values you have checked yourself, each with its source
+# (once you edit this file, the script will no longer overwrite it).
+
+values:
+- variable: va_agr
+  iso3: UZB
+  year: 2015
+  value: 25132430322.5804
+  source: 'NV.AGR.TOTL.KD: World Bank WDI CSV download API_NV.AGR.TOTL.KD_DS2_en_csv_v2_21432.csv (last updated 2026-10-08),
+    data/raw/wdi/bulk_csv/NV.AGR.TOTL.KD/20261012T181909Z/NV.AGR.TOTL.KD.zip'
+- variable: va_ser
+  iso3: KAZ
+  year: 2020
+  value: 116158764486.349
+  source: 'NV.SRV.TOTL.KD: World Bank WDI CSV download API_NV.SRV.TOTL.KD_DS2_en_csv_v2_19287.csv (last updated 2026-10-08),
+    data/raw/wdi/bulk_csv/NV.SRV.TOTL.KD/20261012T181909Z/NV.SRV.TOTL.KD.zip'
+- variable: gfcf
+  iso3: UZB
+  year: 2023
+  value: 53670926225.9319
+  source: 'NE.GDI.FTOT.KD: World Bank WDI CSV download API_NE.GDI.FTOT.KD_DS2_en_csv_v2_3726.csv (last updated 2026-10-08),
+    data/raw/wdi/bulk_csv/NE.GDI.FTOT.KD/20261012T181909Z/NE.GDI.FTOT.KD.zip'

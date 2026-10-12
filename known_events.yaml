@@ -1,0 +1,26 @@
+# Known events that can cause breaks in a country's series: currency regime
+# changes, national accounts revisions and similar. The build lists every event
+# inside a spec's countries and years in the validation report, next to any
+# jumps it finds around that year. Values are never changed or smoothed.
+#
+# Add events you know of. Each needs a source. kind is one of:
+# currency_regime, national_accounts_revision, other.
+
+events:
+  - iso3: KAZ
+    date: 2014-02-11
+    kind: currency_regime
+    description: National Bank of Kazakhstan devalued the tenge by about 19% to a new corridor around 185 per US dollar.
+    source: https://eurasianet.org/kazakhstan-currency-plunges-after-months-of-devaluation-rumors
+
+  - iso3: KAZ
+    date: 2015-08-20
+    kind: currency_regime
+    description: Kazakhstan moved to a free-floating tenge and inflation targeting; the tenge fell about 23% against the US dollar that day.
+    source: https://wiiw.ac.at/kazakhstan-tenge-set-freely-floating-as-economic-growth-stumbles-dlp-3691.pdf
+
+  - iso3: UZB
+    date: 2017-09-05
+    kind: currency_regime
+    description: Uzbekistan unified its exchange rates and allowed currency trading at market rates; the official rate went from about 4,200 to 8,100 som per US dollar.
+    source: https://www.imf.org/en/News/Articles/2017/09/15/pr17353-statement-by-mr-jihad-azourat-the-conclusion-of-a-visit-to-uzbekistan

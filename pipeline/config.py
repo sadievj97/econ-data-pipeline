@@ -29,8 +29,23 @@ class Thresholds(_Strict):
     level: float = Field(5.0, gt=0)
 
 
+class PlausibleRanges(_Strict):
+    share: tuple[float, float] = (0.0, 1.0)
+    percent: tuple[float, float] = (0.0, 100.0)
+    growth_rate: tuple[float, float] = (-50.0, 100.0)
+
+
+class JumpThresholds(_Strict):
+    level_log_change: float = Field(0.4, gt=0)
+    percent_points: float = Field(10.0, gt=0)
+    share_points: float = Field(0.1, gt=0)
+
+
 class CheckSettings(_Strict):
     comparison_threshold: Thresholds = Thresholds()
+    plausible_range: PlausibleRanges = PlausibleRanges()
+    jump: JumpThresholds = JumpThresholds()
+    repeated_run: int = Field(3, ge=2)
 
 
 class PathSettings(_Strict):

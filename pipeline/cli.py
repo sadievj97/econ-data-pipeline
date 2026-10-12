@@ -17,9 +17,16 @@ from .spec import SpecError, describe_spec, load_spec
 SOURCE_PROBLEMS = (SourceError, DownloadError, CacheIntegrityError)
 
 
-def open_sources(config: Config) -> Sources:
-    cache = RawCache(config.folder("raw_cache"))
+def open_sources(config: Config, pins: dict[str, str] | None = None) -> Sources:
+    cache = RawCache(config.folder("raw_cache"), pins=pins)
     return Sources(cache, make_client(config.http.timeout_seconds), attempts=config.http.attempts)
+
+
+def _pins_for(spec_path: Path, refresh: bool) -> dict[str, str] | None:
+    from .build import lock_path, read_lock
+
+    path = lock_path(spec_path)
+    return read_lock(path) if path.exists() and not refresh else None
 
 
 def cmd_check_setup(args: argparse.Namespace) -> int:
@@ -78,9 +85,13 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         print(exc)
         return 1
     config = load_config()
-    sources = open_sources(config)
+    pins = _pins_for(Path(args.spec), args.refresh)
+    sources = open_sources(config, pins)
     print(f"Fetching {spec.name}: {len(spec.countries)} countries, {len(spec.variables)} variables.")
-    print("Files already in data/raw/ are reused." if not args.refresh else "Downloading everything again (--refresh).")
+    if args.refresh:
+        print("Downloading everything again (--refresh).")
+    else:
+        print("Using the raw files pinned in the spec's lock file." if pins else "Files already in data/raw/ are reused.")
     try:
         reports = fetch_spec(spec, sources, refresh=args.refresh)
     finally:
@@ -228,9 +239,43 @@ def cmd_build(args: argparse.Namespace) -> int:
             "Review it, change 'confirmed: false' to 'confirmed: true', then run build again."
         )
         return 1
-    print("The spec is valid and confirmed. Harmonizing and writing outputs arrive in Phases 3 and 4;\n"
-          f"for now, '.\\pipeline fetch {args.spec}' downloads and checks the raw data.")
-    return 1
+    from .build import run_build
+    from .events import load_events
+
+    config = load_config()
+    spec_path = Path(args.spec)
+    pins = _pins_for(spec_path, args.refresh)
+    sources = open_sources(config, pins)
+    print(f"Building {spec.name}: {len(spec.countries)} countries, {len(spec.variables)} variables, "
+          f"{spec.years.start}-{spec.years.end}.")
+    if pins:
+        print("Using the raw files pinned in the spec's lock file.")
+    try:
+        result = run_build(spec_path, spec, sources, config, load_events(), refresh=args.refresh, progress=print)
+    finally:
+        sources.close()
+
+    report = result.report
+    known_ok = sum(k.matched for k in report.known)
+    print()
+    print(f"Errors: {len(report.errors)}   Flags to look at: {len(report.flags)}   "
+          f"Known values matched: {known_ok} of {len(report.known)}   Missing country-years: {len(report.missing)}")
+    for f in report.errors[:10]:
+        where = " ".join(x for x in (f.variable, f.iso3) if x)
+        print(f"  ERROR {f.check} {where}: {f.message}")
+    if len(report.errors) > 10:
+        print(f"  ...and {len(report.errors) - 10} more")
+    print()
+    for path in result.written:
+        shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
+        print(f"Wrote {shown}")
+    if result.lock_changed and result.lock_file is not None:
+        print(f"Pinned the raw files used in {result.lock_file.name} (later builds reuse exactly these).")
+    if report.errors:
+        print("The build FAILED validation: fix the errors above (details in validation_report.md).")
+        return 1
+    print("Validation passed. Panel files (CSV, parquet, .dta) and the R and Stata scripts arrive in Phase 4.")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -264,8 +309,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--refresh", action="store_true", help="download again even if cached files exist")
     p.set_defaults(func=cmd_fetch)
 
-    p = sub.add_parser("build", help="fetch, validate, harmonize and write outputs for a confirmed spec")
+    p = sub.add_parser("build", help="fetch, harmonize, validate and write outputs for a confirmed spec")
     p.add_argument("spec", help="path to a confirmed spec .yaml file")
+    p.add_argument("--refresh", action="store_true", help="download again instead of using the pinned raw files")
     p.set_defaults(func=cmd_build)
     return parser
 

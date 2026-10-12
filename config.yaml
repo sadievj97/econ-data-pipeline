@@ -13,11 +13,26 @@ http:
   timeout_seconds: 120
   attempts: 4           # tries per download before giving up
 
-# Default thresholds the request step writes into new specs (you can change them per spec).
+# Validation settings. Checks never change values; they stop the build (errors) or
+# list things to look at (flags) in out/<spec name>/validation_report.md.
 checks:
+  # Default thresholds the request step writes into new specs, also used to compare a
+  # variable's fallback sources with the one chosen.
   comparison_threshold:
     growth: 1.0         # percentage points of annual growth
     level: 5.0          # percent difference in levels
+  # Allowed values when a variable sets no valid_range. Outside the range is an error.
+  # Levels and indexes must be above zero unless the variable sets allow_negative: true.
+  plausible_range:
+    share: [0, 1]
+    percent: [0, 100]
+    growth_rate: [-50, 100]
+  # Year-to-year changes larger than these are flagged as possible breaks.
+  jump:
+    level_log_change: 0.4     # levels and indexes: |log change| above 0.4 (about +49% or -33%)
+    percent_points: 10.0      # percent measures
+    share_points: 0.1         # shares
+  repeated_run: 3             # flag this many or more identical values in a row
 
 # Folders, relative to this project folder.
 paths:

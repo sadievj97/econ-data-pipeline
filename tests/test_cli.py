@@ -20,7 +20,7 @@ def run(capsys, *args):
 @pytest.fixture
 def offline(monkeypatch, sources):
     """Make every command use the saved fixture files instead of the internet."""
-    monkeypatch.setattr(cli, "open_sources", lambda config: sources)
+    monkeypatch.setattr(cli, "open_sources", lambda config, pins=None: sources)
     return sources
 
 
@@ -119,11 +119,6 @@ def test_build_refuses_a_draft_spec(capsys):
     assert code == 1
     assert "still a draft, so nothing was built" in out
 
-
-def test_build_on_a_confirmed_spec_says_outputs_come_later(capsys, example_data, write_spec):
-    example_data["confirmed"] = True
-    code, out = run(capsys, "build", str(write_spec(example_data)))
-    assert code == 1 and "Phases 3 and 4" in out
 
 
 def test_check_setup_never_prints_keys(tmp_path):
