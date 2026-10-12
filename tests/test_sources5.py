@@ -116,6 +116,8 @@ def test_faostat_fetch_maps_countries_and_reads_units(sources):
     assert set(series.data.iso3) == {"KAZ", "UZB"} and series.data.year.max() == 2023
     assert series.info.unit == UnitInfo("million USD", "constant", 2015, "USD")
     assert not math.isnan(value(series, "UZB", 2020))
+    notes = set(series.data.note)
+    assert "F: Forecast value" in notes and "I: Value imputed by a receiving agency" in notes
 
 
 def test_faostat_requires_an_element(sources):

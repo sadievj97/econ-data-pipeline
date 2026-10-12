@@ -2,6 +2,31 @@
   "about": "Raw snapshots this spec was built from. Rebuild with --refresh to download again.",
   "lock_version": 1,
   "snapshots": {
+    "faostat/bulk/CS": {
+      "retrieved_at": "2026-10-12T19:18:07Z",
+      "sha256": "f41889a16f4d97a45b51f2fbe6bf20aa1e7d008a7067b29c3fdecb50a6408047",
+      "snapshot": "20261012T191807Z"
+    },
+    "faostat/datasets": {
+      "retrieved_at": "2026-10-12T19:15:57Z",
+      "sha256": "f294cc8002c70eeb411697c1522324fd7bfe020a7cb4ba86d70f217c3d63fbf1",
+      "snapshot": "20261012T191557Z"
+    },
+    "ilostat/catalog": {
+      "retrieved_at": "2026-10-12T19:17:46Z",
+      "sha256": "9fc7890733f0cfa3ab0b43154c249d06ca7dbb451e8f5691b7732cc751c13594",
+      "snapshot": "20261012T191746Z"
+    },
+    "ilostat/data/EMP_2EMP_SEX_ECO_NB_A/KAZ": {
+      "retrieved_at": "2026-10-12T19:18:38Z",
+      "sha256": "6cafa798cee780593ef8b5e613097aa154bb2d487b4db2daaa7e65c61d736e7b",
+      "snapshot": "20261012T191838Z"
+    },
+    "ilostat/data/EMP_2EMP_SEX_ECO_NB_A/UZB": {
+      "retrieved_at": "2026-10-12T19:18:04Z",
+      "sha256": "fa776b70682dc5b394d7ec4d99777e11982db21ee48e8978c5c5d14227cc4e13",
+      "snapshot": "20261012T191804Z"
+    },
     "pwt/11.0/pwt110.dta": {
       "retrieved_at": "2026-10-09T18:49:50Z",
       "sha256": "2a0d214958dd46ad6cb9966f5dfa2fc8ad546475c79ed70564caf7383777aaa1",

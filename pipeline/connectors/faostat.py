@@ -122,6 +122,7 @@ class FAOSTAT:
             flags = {}
             if flag_file:
                 for r in csv.DictReader(io.StringIO(_decode(z.read(flag_file)))):
+                    r = {k.strip(): (v or "").strip() for k, v in r.items() if k}  # headers can carry spaces
                     flags[r.get("Flag", "")] = r.get("Description", "")
         table = Table(rows, flags, snap)
         self._tables[dataset] = table

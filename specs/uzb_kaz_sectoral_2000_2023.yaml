@@ -168,3 +168,104 @@ variables:
     unit: share
     price_basis: current
     definition: Share of labour compensation in GDP at current national prices
+
+# --- Added 2026-10-12 at your request: ILO employment counts and the inputs for growth accounting.
+# ILO modelled estimates are used because they cover every year; the survey series (EMP_TEMP_...)
+# have gaps and, for Uzbekistan, combine several surveys over time.
+- name: emp_agr
+  label: Employment in agriculture (thousands), ILO modelled estimates
+  sector: AGR
+  measure: level
+  sources:
+  - source: ilostat
+    code: EMP_2EMP_SEX_ECO_NB_A
+    filters: {sex: SEX_T, classif1: ECO_SECTOR_AGR}
+    unit: thousands
+    price_basis: not_applicable
+- name: emp_ind
+  label: Employment in industry (thousands), ILO modelled estimates
+  sector: IND
+  measure: level
+  sources:
+  - source: ilostat
+    code: EMP_2EMP_SEX_ECO_NB_A
+    filters: {sex: SEX_T, classif1: ECO_SECTOR_IND}
+    unit: thousands
+    price_basis: not_applicable
+- name: emp_ser
+  label: Employment in services (thousands), ILO modelled estimates
+  sector: SER
+  measure: level
+  sources:
+  - source: ilostat
+    code: EMP_2EMP_SEX_ECO_NB_A
+    filters: {sex: SEX_T, classif1: ECO_SECTOR_SER}
+    unit: thousands
+    price_basis: not_applicable
+- name: emp_total_ilo
+  label: Total employment (thousands), ILO modelled estimates
+  measure: level
+  sources:
+  - source: ilostat
+    code: EMP_2EMP_SEX_ECO_NB_A
+    filters: {sex: SEX_T, classif1: ECO_SECTOR_TOTAL}
+    unit: thousands
+    price_basis: not_applicable
+- name: gdp_real_pwt
+  label: Real GDP at constant 2021 national prices (mil. 2021 US$), PWT 11.0
+  measure: level
+  sources:
+  - source: pwt
+    dataset: '11.0'
+    code: rgdpna
+    unit: millions of 2021 US$
+    currency: USD
+    price_basis: constant
+    base_year: 2021
+- name: capital_real_pwt
+  label: Capital stock at constant 2021 national prices (mil. 2021 US$), PWT 11.0
+  measure: level
+  sources:
+  - source: pwt
+    dataset: '11.0'
+    code: rnna
+    unit: millions of 2021 US$
+    currency: USD
+    price_basis: constant
+    base_year: 2021
+- name: k_agr
+  label: Net capital stock, agriculture (million 2015 US$), FAOSTAT
+  sector: AGR
+  measure: level
+  sources:
+  - source: faostat
+    dataset: CS
+    code: '22034'
+    filters: {element: '6184'}
+    unit: million USD
+    currency: USD
+    price_basis: constant
+    base_year: 2015
+
+# Overlap check: total employment from ILO and from PWT should grow alike
+# (threshold from config.yaml: checks.comparison_threshold.growth).
+comparisons:
+- a: emp_total_ilo
+  b: emp_total
+  compare: growth
+  threshold: 1.0
+
+# Growth accounting. Your choices: the labor share is PWT's labsh (or put a number such as 0.6);
+# sensitivity shares come from config.yaml unless you add sensitivity: [...]; add periods:
+# [[start, end], ...] for sub-periods. Sectors use the economy-wide labor share unless you give
+# them their own. Only agriculture has a capital series (FAOSTAT), so industry and services get
+# labor productivity only.
+growth_accounting:
+  output: gdp_real_pwt
+  capital: capital_real_pwt
+  labor: emp_total
+  labor_share: labsh
+  sectors:
+  - {sector: AGR, output: va_agr, labor: emp_agr, capital: k_agr}
+  - {sector: IND, output: va_ind, labor: emp_ind}
+  - {sector: SER, output: va_ser, labor: emp_ser}
