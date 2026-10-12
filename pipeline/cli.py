@@ -300,7 +300,8 @@ def cmd_build(args: argparse.Namespace) -> int:
               "(details in validation_report.md).")
         return 1
     shown = result.out_dir.relative_to(PROJECT_ROOT) if result.out_dir.is_relative_to(PROJECT_ROOT) else result.out_dir
-    print(f"Validation passed. To recheck the panel in R or Stata, run load_and_check.R or load_and_check.do in {shown}.")
+    print(f"Validation passed. In R, run {shown}\\load_and_check.R to load the panel and recheck it"
+          + (" (or load_and_check.do in Stata)." if config.outputs.stata else "."))
     return 0
 
 

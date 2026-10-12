@@ -2,10 +2,11 @@
 
 Describe the data you need in plain English. The pipeline turns that into a
 **spec** you review and confirm, downloads the series from official sources,
-harmonizes them into a tidy country-year panel, checks it, and writes CSV,
-parquet and Stata files, a codebook, a log of every step, and R and Stata
-scripts that reload and recheck the panel. An optional module computes TFP
-growth as a Solow residual.
+harmonizes them into a tidy country-year panel, checks it, and writes CSV and
+parquet files, a codebook, a log of every step, and R scripts that reload and
+recheck the panel. An optional module computes TFP growth as a Solow residual,
+with an R script that reproduces its tables. R is the analysis language;
+Stata files can be switched on in `config.yaml` (`outputs: stata: true`).
 
 Built for productivity and growth research on Central Asia, but any country
 works for the international sources.
@@ -51,7 +52,7 @@ py -3 -m venv .venv
 ```
 
 It reports Python, the settings file, whether your key is set (never the key
-itself), and whether R and Stata are installed.
+itself), and whether R is installed.
 
 ## Workflow
 
@@ -91,7 +92,7 @@ records the new files).
 
 | command | what it does |
 |---|---|
-| `.\pipeline check-setup` | Python, settings, key status (never the key), R and Stata |
+| `.\pipeline check-setup` | Python, settings, key status (never the key), R |
 | `.\pipeline request "<text>"` | Claude drafts a spec (uses your Anthropic key; a few cents to about 50 cents) |
 | `.\pipeline search <source> "<words>"` | search a catalog: `wdi`, `pwt`, `ilostat`, `imf`, `faostat`, `nso_uzb` |
 | `.\pipeline describe <source> <code> [--dataset D] [--country ISO3]` | the filter choices an indicator offers for a country |
@@ -157,17 +158,33 @@ jumps.
 
 | file | contents |
 |---|---|
-| `panel_wide.csv`, `panel.dta` | one row per country-year; the .dta has variable labels (Stata 14+) |
+| `panel_wide.csv` | one row per country-year, one column per variable |
 | `panel_long.csv`, `panel.parquet` | one row per country-year-variable, with `flag` (value created by a transform) and `source_note` (the source's own remark: projection, break in series, imputed) |
 | `codebook.md`, `codebook.csv` | every variable's source, code, definition, unit, prices, base year, retrieval date, raw files |
 | `validation_report.md`, `missing_data.csv` | errors, flags (source comparisons, jumps, repeated values, source notes, known events), known values, every missing country-year |
 | `data_log.md` | every step in order, including what was left out and why |
-| `load_and_check.R`, `load_and_check.do` | reload the panel, apply labels, rerun the checks |
-| `growth_accounting.md`, `growth_accounting_annual.csv`, `growth_accounting_summary.csv`, `growth_accounting.R`, `growth_accounting.do` | growth accounting tables, and scripts that recompute them from the panel and confirm they match |
+| `load_and_check.R` | loads the panel, applies labels and units, reruns the checks |
+| `growth_accounting.md`, `growth_accounting_annual.csv`, `growth_accounting_summary.csv`, `growth_accounting.R` | growth accounting tables, and an R script that recomputes them from the panel and confirms they match |
 
-In R: open `load_and_check.R` in RStudio and click Source (the data frame is
-`panel`). In Stata: change to the output folder (File > Change Working
-Directory) and type `do load_and_check.do`.
+With `outputs: stata: true` in `config.yaml`, a build also writes `panel.dta`
+(Stata 14+, with labels), `load_and_check.do` and `growth_accounting.do`. They
+are off by default; switching them off again removes them from `out\`.
+
+## Using the results in R
+
+In RStudio: File > Open File, pick `out\<spec name>\load_and_check.R`, and click
+**Source**. When it finishes you have three data frames:
+
+- `panel`: one row per country and year, one column per variable, each with a
+  `label` and `unit` attribute;
+- `panel_long`: one row per country, year and variable, with `flag` and
+  `source_note`;
+- `codebook`: one row per variable with its source, code, units and raw files.
+
+Then open `growth_accounting.R` the same way (if the spec has growth
+accounting) for `growth_annual` and `growth_summary`. Both scripts use base R
+only, so no packages need installing. From PowerShell, the same checks run with
+`Rscript out\<spec name>\load_and_check.R`.
 
 ## Growth accounting method
 
@@ -190,5 +207,7 @@ labor productivity only.
   them, or rebuild with `--refresh`.
 - **"data/manual/... has changed since it was first used"**: rebuild with
   `--refresh` to use the new version on purpose.
-- **Stata**: the .do files were written for Stata 14 or newer; if one stops, the
-  last lines of its log say which check failed.
+- **An R script stops with "CHECK FAILED"**: a file in `out\` was changed or is
+  incomplete. Rebuild the spec; the message names the check that failed.
+- **Stata** (only with `outputs: stata: true`): the .do files are written for
+  Stata 14 or newer but have not been run on this computer, which has no Stata.

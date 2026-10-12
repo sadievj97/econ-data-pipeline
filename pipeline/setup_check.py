@@ -57,7 +57,13 @@ def report(env_file: Path = ENV_FILE, config_file: Path = CONFIG_FILE) -> tuple[
     lines.append(f"COMTRADE_API_KEY in .env: {'set' if comtrade == 'set' else 'not set (optional)'}")
 
     r = find_rscript()
-    lines.append(f"R: {r if r else 'not found'}")
-    stata = find_stata()
-    lines.append(f"Stata: {stata if stata else 'not found'}")
+    lines.append(f"R: {r if r else 'not found (needed to run load_and_check.R and growth_accounting.R)'}")
+    stata_on = False
+    try:
+        stata_on = load_config(config_file).outputs.stata
+    except Exception:
+        pass
+    if stata_on:
+        stata = find_stata()
+        lines.append(f"Stata: {stata if stata else 'not found'} (Stata outputs are on in config.yaml)")
     return "\n".join(lines), ok

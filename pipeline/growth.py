@@ -208,7 +208,7 @@ def _pct(v: float) -> str:
     return "" if np.isnan(v) else f"{v:.2f}"
 
 
-def markdown(result: GrowthResult, panel: Panel, ga: GrowthAccounting) -> str:
+def markdown(result: GrowthResult, panel: Panel, ga: GrowthAccounting, stata: bool = False) -> str:
     units = {name: panel.results[name].unit["unit"] for _, name in ga.variables_used() if name in panel.results}
     out = [f"# Growth accounting: {panel.spec.title}", "",
            "TFP growth is the Solow residual g_A = g_Y - (1 - s) g_K - s g_L, with log growth rates in percent "
@@ -254,8 +254,9 @@ def markdown(result: GrowthResult, panel: Panel, ga: GrowthAccounting) -> str:
     out += ["## Files", "",
             "- growth_accounting_annual.csv: every country, year, scope and labor-share rule.",
             "- growth_accounting_summary.csv: the period averages shown above, for every rule.",
-            "- growth_accounting.R and growth_accounting.do recompute both tables from the panel files and check "
-            "that they match.", ""]
+            "- growth_accounting.R recomputes both tables from panel_wide.csv, checks that they match, and leaves "
+            "them in R as `growth_annual` and `growth_summary`"
+            + ("; growth_accounting.do does the same check in Stata." if stata else "."), ""]
     return "\n".join(out)
 
 
@@ -326,7 +327,11 @@ def r_script(result: GrowthResult, panel: Panel, ga: GrowthAccounting) -> str:
             "  }",
             "}",
             "cat(\"ok   summary table reproduced\\n\")",
-            f"cat(\"\\nGrowth accounting reproduced for {panel.spec.name}.\\n\")", ""]
+            "growth_annual <- theirs[order(theirs$scope_id, theirs$rule_id, theirs$iso3, theirs$year), ]",
+            "growth_summary <- summ",
+            "rm(mine, theirs, summ, rows, key, lg)",
+            f"cat(\"\\nGrowth accounting reproduced for {panel.spec.name}. Tables ready: growth_annual, growth_summary.\\n\")",
+            ""]
     return "\n".join(out)
 
 

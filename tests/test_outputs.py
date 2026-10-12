@@ -1,4 +1,4 @@
-"""Phase 4 outputs: panel files, codebook, and the R and Stata scripts."""
+"""Outputs: panel files, codebook and the R scripts; Stata files only when outputs.stata is on."""
 
 import csv
 import hashlib
@@ -12,10 +12,10 @@ import pytest
 import yaml
 
 from pipeline.build import run_build
-from pipeline.config import PathSettings, load_config
+from pipeline.config import OutputSettings, PathSettings, load_config
 from pipeline.events import load_events
-from pipeline.outputs import PANEL_FILES, _stata_str, dta_label, dta_timestamp
-from pipeline.setup_check import find_rscript, find_stata
+from pipeline.outputs import PANEL_FILES, STATA_FILES, _stata_str, dta_label, dta_timestamp
+from pipeline.setup_check import find_rscript
 from pipeline.spec import parse_spec
 
 KEEP = ("va_agr_real", "gdp_real_wdi", "gdp_real_pwt", "labor_share_pwt")
@@ -26,6 +26,11 @@ ALL_FILES = sorted(PANEL_FILES + ("validation_report.md", "missing_data.csv", "d
 def config(tmp_path):
     return load_config().model_copy(update={"paths": PathSettings(
         raw_cache=str(tmp_path / "raw"), manual="data/manual", outputs=str(tmp_path / "out"))})
+
+
+@pytest.fixture
+def stata_config(config):
+    return config.model_copy(update={"outputs": OutputSettings(stata=True)})
 
 
 @pytest.fixture
@@ -79,8 +84,18 @@ def test_wide_and_long_csv(spec_file, sources, config):
     assert (out / "panel_wide.csv").read_bytes().count(b"\r") == 0
 
 
-def test_dta_has_labels_values_and_a_fixed_timestamp(spec_file, sources, config):
-    result = build(spec_file, sources, config)
+def test_stata_files_only_when_switched_on(spec_file, sources, config, stata_config):
+    out = build(spec_file, sources, config).out_dir
+    assert not any((out / n).exists() for n in STATA_FILES)
+    build(spec_file, sources, stata_config)
+    assert (out / "panel.dta").exists() and (out / "load_and_check.do").exists()
+    result = build(spec_file, sources, config)  # switched off again: the old Stata files go
+    assert not any((out / n).exists() for n in STATA_FILES)
+    assert "removed files an earlier build left" in (out / "data_log.md").read_text(encoding="utf-8")
+
+
+def test_dta_has_labels_values_and_a_fixed_timestamp(spec_file, sources, stata_config):
+    result = build(spec_file, sources, stata_config)
     frame, meta = pyreadstat.read_dta(str(result.out_dir / "panel.dta"))
     assert list(frame.columns) == ["iso3", "country", "year", *KEEP]
     assert meta.file_label == result.spec.title
@@ -143,6 +158,7 @@ def test_r_script_runs_and_catches_a_broken_file(spec_file, sources, config):
     ok = subprocess.run([str(find_rscript()), str(out / "load_and_check.R")], capture_output=True, text=True)
     assert ok.returncode == 0, ok.stderr
     assert "All checks passed" in ok.stdout and "va_agr_real: 24 missing" in ok.stdout
+    assert "Ready: panel (one row per country-year), panel_long (with flag and source_note), codebook." in ok.stdout
 
     wide = out / "panel_wide.csv"
     lines = wide.read_text(encoding="utf-8").splitlines(keepends=True)
@@ -150,10 +166,3 @@ def test_r_script_runs_and_catches_a_broken_file(spec_file, sources, config):
     bad = subprocess.run([str(find_rscript()), str(out / "load_and_check.R")], capture_output=True, text=True)
     assert bad.returncode != 0 and "CHECK FAILED" in bad.stderr
 
-
-@pytest.mark.skipif(find_stata() is None, reason="Stata is not installed")
-def test_stata_script_runs(spec_file, sources, config):
-    out = build(spec_file, sources, config).out_dir
-    run = subprocess.run([str(find_stata()), "/e", "do", "load_and_check.do"], cwd=out, capture_output=True, text=True)
-    log = (out / "load_and_check.log").read_text(encoding="utf-8", errors="replace")
-    assert run.returncode == 0 and "All checks passed" in log and "r(9)" not in log

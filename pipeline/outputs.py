@@ -28,10 +28,10 @@ from .sectors import sector_label
 from .spec import country_name
 from .validate import ValidationReport, range_rule
 
-PANEL_FILES = ("panel_long.csv", "panel_wide.csv", "panel.parquet", "panel.dta",
-               "codebook.md", "codebook.csv", "load_and_check.R", "load_and_check.do")
+PANEL_FILES = ("panel_long.csv", "panel_wide.csv", "panel.parquet", "codebook.md", "codebook.csv", "load_and_check.R")
 GROWTH_FILES = ("growth_accounting.md", "growth_accounting_annual.csv", "growth_accounting_summary.csv",
-                "growth_accounting.R", "growth_accounting.do")
+                "growth_accounting.R")
+STATA_FILES = ("panel.dta", "load_and_check.do", "growth_accounting.do")  # only when outputs.stata is true
 KEY_LABELS = {"iso3": "ISO 3166-1 alpha-3 country code", "country": "Country name", "year": "Year"}
 SOURCE_NAMES = {
     "wdi": "World Bank, World Development Indicators",
@@ -178,7 +178,7 @@ def codebook_csv(rows: list[dict[str, str]]) -> str:
     return _csv(CODEBOOK_COLUMNS, [[row[c] for c in CODEBOOK_COLUMNS] for row in rows])
 
 
-def codebook_markdown(panel: Panel, rows: list[dict[str, str]], report: ValidationReport) -> str:
+def codebook_markdown(panel: Panel, rows: list[dict[str, str]], report: ValidationReport, stata: bool = False) -> str:
     spec = panel.spec
     countries = ", ".join(f"{c} ({country_name(c)})" for c in panel.countries)
     out = [f"# Codebook: {spec.title}", "",
@@ -190,12 +190,17 @@ def codebook_markdown(panel: Panel, rows: list[dict[str, str]], report: Validati
            "| panel_long.csv | one row per country-year-variable, with a `flag` column naming any transform that "
            "created the value (empty means exactly as published) and a `source_note` column with the source's own "
            "remark on the value (for example IMF projection, break in series, imputed value) |",
-           "| panel.parquet | the long panel with typed columns; this codebook is stored in its metadata |",
-           "| panel.dta | the wide panel for Stata 14 or newer, with variable labels |",
-           "| codebook.md, codebook.csv | this codebook, as text and as a table |",
+           "| panel.parquet | the long panel with typed columns; this codebook is stored in its metadata |"]
+    if stata:
+        out.append("| panel.dta | the wide panel for Stata 14 or newer, with variable labels |")
+    out += ["| codebook.md, codebook.csv | this codebook, as text and as a table |",
            "| validation_report.md, missing_data.csv | the checks run and every missing country-year |",
            "| data_log.md | every step of the build, in order |",
-           "| load_and_check.R, load_and_check.do | load the panel, apply labels, rerun the checks |", "",
+           "| load_and_check.R | loads the panel in R as `panel` (wide), `panel_long` and `codebook`, applies labels "
+           "and units, and reruns the checks |"]
+    if stata:
+        out.append("| load_and_check.do | the same for Stata |")
+    out += ["",
            "## Keys", "",
            "- `iso3`: ISO 3166-1 alpha-3 country code. `country`: country name (ISO 3166). `year`: calendar year.",
            "- Each `iso3`-`year` pair appears once in the wide files; every spec country and year is present, "
@@ -389,18 +394,26 @@ def r_script(panel: Panel, rows: list[dict[str, str]], report: ValidationReport,
             out.append(f"x <- {sel}; check(length(x) == 1 && !is.na(x) && abs(x - {_num(kv.value)}) <= {tol} * "
                        f"abs({_num(kv.value)}), \"{kv.variable} {kv.iso3} {kv.year} = {_num(kv.value)}\")")
     out += ["", "# The long file holds the same values as the wide file",
-            "long <- read.csv(file.path(here, \"panel_long.csv\"), colClasses = c(variable = \"character\", "
+            "panel_long <- read.csv(file.path(here, \"panel_long.csv\"), colClasses = c(variable = \"character\", "
             "iso3 = \"character\", country = \"character\", year = \"integer\", value = \"numeric\", flag = \"character\", "
             "source_note = \"character\"),",
-            "                 na.strings = \"\", fileEncoding = \"UTF-8\")",
-            f"check(nrow(long) == {len(names) * len(panel.countries) * len(panel.years)}L, \"panel_long.csv has every value\")",
+            "                       na.strings = \"\", fileEncoding = \"UTF-8\")",
+            f"check(nrow(panel_long) == {len(names) * len(panel.countries) * len(panel.years)}L, "
+            "\"panel_long.csv has every value\")",
             "for (v in setdiff(names(panel), c(\"iso3\", \"country\", \"year\"))) {",
-            "  part <- long[long$variable == v, ]",
+            "  part <- panel_long[panel_long$variable == v, ]",
             "  part <- part[order(part$iso3, part$year), ]",
             "  check(identical(as.vector(part$value), as.vector(panel[[v]])), paste0(v, \": long and wide files agree\"))",
             "}",
             "",
-            f"cat(\"\\nAll checks passed for {spec.name}. The data frame `panel` is ready.\\n\")", ""]
+            "# The codebook: source, code, unit, prices, base year, retrieval date and raw files of every variable",
+            "codebook <- read.csv(file.path(here, \"codebook.csv\"), colClasses = \"character\", fileEncoding = \"UTF-8\")",
+            f"check(identical(codebook$variable, c({', '.join(_r_str(n) for n in names)})), \"codebook lists every variable\")",
+            "",
+            "rm(list = intersect(c(\"x\", \"v\", \"part\", \"check\", \"script_dir\"), ls()))",
+            f"cat(\"\\nAll checks passed for {spec.name}.\\n\")",
+            "cat(\"Ready: panel (one row per country-year), panel_long (with flag and source_note), codebook.\\n\")",
+            ""]
     return "\n".join(out)
 
 
@@ -488,37 +501,47 @@ def write_outputs(panel: Panel, report: ValidationReport, config: Config, out_di
         path.write_text(content, encoding="utf-8", newline="\n")
         written.append(path)
 
+    stata = config.outputs.stata
     text("panel_long.csv", _csv(["variable", "iso3", "country", "year", "value", "flag", "source_note"], long_rows(panel)))
     text("panel_wide.csv", wide_csv(panel))
     write_parquet(panel, rows, out_dir / "panel.parquet")
     written.append(out_dir / "panel.parquet")
-    stamp = dta_timestamp(retrieved)
-    write_dta(panel, out_dir / "panel.dta", stamp)
-    written.append(out_dir / "panel.dta")
     text("codebook.csv", codebook_csv(rows))
-    text("codebook.md", codebook_markdown(panel, rows, report))
+    text("codebook.md", codebook_markdown(panel, rows, report, stata))
     text("load_and_check.R", r_script(panel, rows, report, config))
-    text("load_and_check.do", stata_script(panel, rows, report, config))
 
     n_rows = len(panel.countries) * len(panel.years)
-    lines = [f"panel_wide.csv and panel.dta: {n_rows} rows (country-years) x {len(rows)} variables",
+    lines = [f"panel_wide.csv: {n_rows} rows (country-years) x {len(rows)} variables",
              f"panel_long.csv and panel.parquet: {n_rows * len(rows)} rows (country-year-variables)",
-             f"panel.dta: Stata 14+ format, saved-at stamp set to {stamp} (newest raw file) so rebuilds are identical"]
-    if dta_label(panel.spec.title) != panel.spec.title:
-        lines.append("panel.dta: dataset label shortened to Stata's 80-character limit; the full title is in codebook.md")
-    lines.append("also written: codebook.md, codebook.csv, load_and_check.R, load_and_check.do")
+             "also written: codebook.md, codebook.csv, load_and_check.R"]
+    if stata:
+        stamp = dta_timestamp(retrieved)
+        write_dta(panel, out_dir / "panel.dta", stamp)
+        written.append(out_dir / "panel.dta")
+        text("load_and_check.do", stata_script(panel, rows, report, config))
+        lines.append(f"Stata files (outputs.stata is on): panel.dta in Stata 14+ format, saved-at stamp set to {stamp} "
+                     "(newest raw file) so rebuilds are identical; load_and_check.do")
+        if dta_label(panel.spec.title) != panel.spec.title:
+            lines.append("panel.dta: dataset label shortened to Stata's 80-character limit; the full title is in codebook.md")
     if growth_result is not None:
         from . import growth
 
         ga = panel.spec.growth_accounting
         text("growth_accounting_annual.csv", growth.annual_csv(growth_result))
         text("growth_accounting_summary.csv", growth.summary_csv(growth_result))
-        text("growth_accounting.md", growth.markdown(growth_result, panel, ga))
+        text("growth_accounting.md", growth.markdown(growth_result, panel, ga, stata))
         text("growth_accounting.R", growth.r_script(growth_result, panel, ga))
-        text("growth_accounting.do", growth.stata_script(growth_result, panel, ga))
+        if stata:
+            text("growth_accounting.do", growth.stata_script(growth_result, panel, ga))
         n_rules = sum(len(r) for r in growth_result.rules.values())
         lines.append(f"growth accounting: {len(growth_result.scopes)} scope(s), {n_rules} labor-share rule(s), "
                      f"{len(growth_result.annual)} annual rows, {len(growth_result.summary)} period averages")
+    keep = {p.name for p in written}
+    stale = [out_dir / n for n in STATA_FILES + GROWTH_FILES if n not in keep and (out_dir / n).is_file()]
+    for path in stale:
+        path.unlink()
+    if stale:
+        lines.append(f"removed files an earlier build left that this build does not write: {', '.join(p.name for p in stale)}")
     log.add("Outputs", *lines)
     return written
 
@@ -527,7 +550,7 @@ def remove_stale_outputs(out_dir: Path) -> list[Path]:
     """After a failed build, remove panel files an earlier build left, so out/ never
     holds a panel that the current validation report does not vouch for."""
     removed = []
-    for name in PANEL_FILES + GROWTH_FILES:
+    for name in PANEL_FILES + GROWTH_FILES + STATA_FILES:
         path = out_dir / name
         if path.is_file():
             path.unlink()

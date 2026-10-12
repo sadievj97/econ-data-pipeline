@@ -139,4 +139,4 @@ def test_build_writes_growth_accounting_files(growth_spec, sources, tmp_path):
     if find_rscript() is not None:
         run = subprocess.run([str(find_rscript()), str(out / "growth_accounting.R")], capture_output=True, text=True)
         assert run.returncode == 0, run.stderr
-        assert "Growth accounting reproduced" in run.stdout
+        assert "Growth accounting reproduced" in run.stdout and "Tables ready: growth_annual, growth_summary." in run.stdout

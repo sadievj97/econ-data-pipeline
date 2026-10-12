@@ -38,6 +38,12 @@ checks:
 growth_accounting:
   sensitivity_shares: [0.5, 0.6, 0.7]   # constant labor shares compared when a spec lists none
 
+# Output files. R is the analysis language: the CSV and parquet files plus the R scripts
+# are always written. Set stata: true to also write panel.dta, load_and_check.do and
+# growth_accounting.do (for example for a coauthor who uses Stata).
+outputs:
+  stata: false
+
 # Folders, relative to this project folder.
 paths:
   raw_cache: data/raw     # every download, saved once with a timestamp, never modified

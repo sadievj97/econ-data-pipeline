@@ -52,6 +52,10 @@ class GrowthSettings(_Strict):
     sensitivity_shares: list[float] = Field(default_factory=lambda: [0.5, 0.6, 0.7])
 
 
+class OutputSettings(_Strict):
+    stata: bool = False  # also write panel.dta and the .do scripts
+
+
 class PathSettings(_Strict):
     raw_cache: str = "data/raw"
     manual: str = "data/manual"
@@ -63,6 +67,7 @@ class Config(_Strict):
     http: HttpSettings = HttpSettings()
     checks: CheckSettings = CheckSettings()
     growth_accounting: GrowthSettings = GrowthSettings()
+    outputs: OutputSettings = OutputSettings()
     paths: PathSettings = PathSettings()
 
     def folder(self, name: Literal["raw_cache", "manual", "outputs"]) -> Path:
