@@ -58,5 +58,6 @@ def fetch_spec(spec: Spec, sources: Sources, refresh: bool = False,
                 report.errors.append(str(exc))
             else:
                 report.errors, report.warnings = compare(ref, report.series.info.unit)
+                report.warnings += list(report.series.info.details.get("warnings", []))
             reports.append(report)
     return reports

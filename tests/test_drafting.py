@@ -119,6 +119,33 @@ def test_draft_files_are_readable(sources, config):
     assert "**wdi NV.AGR.TOTL.KN**" in review and "Why: local currency" in review
 
 
+def test_sources_with_datasets_and_filters(sources, config):
+    s = submission()
+    s["variables"].append({
+        "name": "emp_agr", "label": "Employment in agriculture (thousands)", "sector": "AGR", "measure": "level",
+        "sources": [{"source": "ilostat", "code": "EMP_2EMP_SEX_ECO_NB_A", "dataset": None,
+                     "filters": [{"name": "sex", "value": "SEX_T"}, {"name": "classif1", "value": "ECO_SECTOR_AGR"}]}],
+        "alternatives": [], "note": None})
+    s["variables"].append({
+        "name": "k_agr", "label": "Net capital stock, agriculture (2015 prices)", "sector": "AGR", "measure": "level",
+        "sources": [{"source": "faostat", "code": "22034", "dataset": "CS",
+                     "filters": [{"name": "element", "value": "6184"}]}],
+        "alternatives": [], "note": None})
+    result = assemble(s, REQUEST, sources, config)
+    emp, k = result.spec["variables"][-2]["sources"][0], result.spec["variables"][-1]["sources"][0]
+    assert emp["filters"] == {"classif1": "ECO_SECTOR_AGR", "sex": "SEX_T"} and emp["unit"] == "thousands"
+    assert (k["dataset"], k["base_year"], k["price_basis"]) == ("CS", 2015, "constant")
+    parse_spec(result.spec)
+
+
+def test_unknown_filter_names_are_sent_back(sources, config):
+    s = submission()
+    s["variables"][0]["sources"] = [{"source": "ilostat", "code": "EMP_2EMP_SEX_ECO_NB_A", "dataset": None,
+                                     "filters": [{"name": "gender", "value": "T"}]}]
+    with pytest.raises(DraftRejected, match="takes no filter.s. gender; its filters are classif1"):
+        assemble(s, REQUEST, sources, config)
+
+
 # ------------------------------------------------------------- the loop
 
 

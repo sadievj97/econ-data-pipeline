@@ -49,7 +49,7 @@ class WDI:
     name = "wdi"
 
     def __init__(self, cache: RawCache, client: httpx.Client, attempts: int = 4,
-                 sleep: Callable[[float], None] = time.sleep):
+                 sleep: Callable[[float], None] = time.sleep, **_: Any):
         self.cache = cache
         self.client = client
         self.attempts = attempts
@@ -106,7 +106,7 @@ class WDI:
         self._catalog_refreshed = self._catalog_refreshed or refresh
         return self._catalog
 
-    def info(self, code: str) -> IndicatorInfo:
+    def info(self, code: str, dataset: str | None = None, filters: dict | None = None) -> IndicatorInfo:
         catalog = self.catalog()
         if code not in catalog:
             raise UnknownCode(f"'{code}' is not in the WDI indicator list")

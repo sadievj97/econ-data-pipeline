@@ -1,0 +1,91 @@
+# Example spec with a growth_accounting section, written by hand to show the format.
+# Copy it, adjust it, and set confirmed: true before building.
+#
+# Growth accounting is never drafted by the request step, because it holds choices that are
+# yours: the labor share (a variable such as PWT's labsh, or a number you pick), the
+# sensitivity shares (default: growth_accounting.sensitivity_shares in config.yaml), and the
+# sub-periods. Nothing below picks a number for you: the agriculture sector uses the
+# economy-wide PWT labor share unless you give it its own labor_share.
+#
+# Note: PWT 11.0 has no human capital index (hc) or TFP (rtfpna) for Uzbekistan, so this
+# example adjusts labor by persons engaged only.
+
+spec_version: 1
+name: uzb_kaz_growth
+title: Uzbekistan and Kazakhstan, growth accounting inputs, 2000-2023
+confirmed: false
+countries: [UZB, KAZ]
+years: {start: 2000, end: 2023}
+sector_classification: isic4_3sector
+source_choice: same_for_all
+
+variables:
+  # --- Whole economy (Penn World Table 11.0)
+  - name: gdp_real_pwt
+    label: Real GDP at constant 2021 national prices (mil. 2021 US$), PWT 11.0
+    measure: level
+    sources:
+      - {source: pwt, dataset: "11.0", code: rgdpna, unit: millions of 2021 US$, currency: USD,
+         price_basis: constant, base_year: 2021}
+  - name: capital_real_pwt
+    label: Capital stock at constant 2021 national prices (mil. 2021 US$), PWT 11.0
+    measure: level
+    sources:
+      - {source: pwt, dataset: "11.0", code: rnna, unit: millions of 2021 US$, currency: USD,
+         price_basis: constant, base_year: 2021}
+  - name: emp_pwt
+    label: Number of persons engaged (millions), PWT 11.0
+    measure: level
+    sources:
+      - {source: pwt, dataset: "11.0", code: emp, unit: millions, price_basis: not_applicable}
+  - name: labor_share_pwt
+    label: Share of labour compensation in GDP at current national prices, PWT 11.0
+    measure: share
+    sources:
+      - {source: pwt, dataset: "11.0", code: labsh, unit: share, price_basis: current}
+
+  # --- Agriculture (ISIC A): value added (WDI), employment (ILO), capital stock (FAOSTAT)
+  - name: va_agr
+    label: Value added, agriculture, forestry and fishing (constant 2015 US$), WDI
+    sector: AGR
+    measure: level
+    sources:
+      - {source: wdi, code: NV.AGR.TOTL.KD, unit: constant 2015 US$, currency: USD,
+         price_basis: constant, base_year: 2015}
+  - name: emp_agr
+    label: Employment in agriculture (thousands), ILO modelled estimates
+    sector: AGR
+    measure: level
+    sources:
+      - source: ilostat
+        code: EMP_2EMP_SEX_ECO_NB_A
+        filters: {sex: SEX_T, classif1: ECO_SECTOR_AGR}
+        unit: thousands
+        price_basis: not_applicable
+  - name: k_agr
+    label: Net capital stock, agriculture (million 2015 US$), FAOSTAT
+    sector: AGR
+    measure: level
+    sources:
+      - source: faostat
+        dataset: CS
+        code: "22034"             # Net Capital Stocks (Agriculture, Forestry and Fishing)
+        filters: {element: "6184"} # Value US$, 2015 prices
+        unit: million USD
+        currency: USD
+        price_basis: constant
+        base_year: 2015
+
+growth_accounting:
+  output: gdp_real_pwt
+  capital: capital_real_pwt
+  labor: emp_pwt
+  labor_share: labor_share_pwt   # or a number you choose, such as 0.6
+  # sensitivity: [...]           # constant labor shares to compare; default from config.yaml
+  # periods: [[start, end], ...] # sub-periods inside the spec's years; the whole span is always shown
+  sectors:
+    - sector: AGR
+      output: va_agr
+      labor: emp_agr
+      capital: k_agr
+      # labor_share: ...         # defaults to the economy-wide labor_share above

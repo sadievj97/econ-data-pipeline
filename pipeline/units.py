@@ -68,6 +68,84 @@ def from_pwt_label(label: str) -> UnitInfo:
     return UnitInfo(money_text, None, None, None)
 
 
+def _last_parenthesis(text: str) -> str:
+    groups = re.findall(r"\(([^()]*)\)", text)
+    return groups[-1].strip() if groups else ""
+
+
+def from_ilo_label(label: str) -> UnitInfo:
+    """ILOSTAT ends labels with the unit, e.g. 'Employment by sex and economic activity (thousands)'."""
+    text = _last_parenthesis(label)
+    low = text.lower()
+    if low == "thousands":
+        return UnitInfo("thousands", "not_applicable", None, None)
+    if "%" in low:
+        return UnitInfo(text, "not_applicable", None, None)
+    if low == "local currency" and "nominal" in label.lower():
+        return UnitInfo(text, "current", None, LOCAL_CURRENCY)
+    return UnitInfo(text, None, None, None)
+
+
+def from_imf_name(name: str) -> UnitInfo:
+    """IMF series names end with the unit, e.g. 'Gross domestic product (GDP), Constant prices,
+    Domestic currency' or '..., Constant prices, Percent change'."""
+    parts = [p.strip() for p in name.split(",")]
+    text = ", ".join(parts[1:]) if len(parts) > 1 else ""
+    low = name.lower()
+    if "percent" in low or "per cent" in low:
+        return UnitInfo(text, "not_applicable", None, None)
+    basis = "constant" if "constant prices" in low else "current" if "current prices" in low else None
+    if "u.s. dollar" in low or "us dollar" in low:
+        currency = "USD"
+    elif "domestic currency" in low or "national currency" in low:
+        currency = LOCAL_CURRENCY
+    else:
+        currency = None
+    return UnitInfo(text, basis if currency else None, None, currency)
+
+
+def from_fao(element: str, unit: str) -> UnitInfo:
+    """FAOSTAT gives an element ('Value US$, 2015 prices') and a unit ('million USD')."""
+    el, un = element.lower(), unit.lower()
+    year = re.search(r"(\d{4}) prices", el)
+    if "us$" in el or "usd" in un:
+        currency = "USD"
+    elif "local currency" in el or "slc" in un or "lcu" in un:
+        currency = LOCAL_CURRENCY
+    else:
+        currency = None
+    if currency is None:
+        return UnitInfo(unit, "not_applicable", None, None)
+    if year:
+        return UnitInfo(unit, "constant", int(year.group(1)), currency)
+    if "price" in el or "deflator" in el:
+        return UnitInfo(unit, None, None, currency)
+    return UnitInfo(unit, "current", None, currency)
+
+
+PREVIOUS_YEAR_PRICES = ("values are in the previous year's prices, so each year has a different price base: "
+                        "this is not a constant-price series and cannot be compared across years without "
+                        "chain-linking")
+
+
+def from_siat_unit(text: str) -> tuple[UnitInfo, list[str]]:
+    """The Statistics Agency of Uzbekistan's 'Unit of measurement', e.g.
+    'at current prices, billion soums'. Returns the unit and any warnings."""
+    low = text.lower()
+    currency = "UZS" if ("soum" in low or "sum" in low.split()) else "USD" if "dollar" in low else None
+    if re.search(r"previous year'?s? prices", low):
+        return UnitInfo(text, None, None, currency), [PREVIOUS_YEAR_PRICES]
+    if "%" in low or "percent" in low or "per cent" in low:
+        return UnitInfo(text, "not_applicable", None, None), []
+    if "current prices" in low:
+        return UnitInfo(text, "current", None, currency), []
+    if "constant prices" in low or "comparable prices" in low:
+        return UnitInfo(text, "constant", None, currency), []
+    if currency is None and "price" not in low:
+        return UnitInfo(text, "not_applicable", None, None), []
+    return UnitInfo(text, None, None, currency), []
+
+
 def compare(ref: SourceRef, unit: UnitInfo) -> tuple[list[str], list[str]]:
     """Return (errors, warnings): errors are definite disagreements between the
     spec and the source; warnings are things the source does not state clearly."""

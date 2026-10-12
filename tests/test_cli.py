@@ -69,11 +69,11 @@ def test_fetch_flags_a_spec_that_disagrees_with_the_source(capsys, offline, exam
 def test_fetch_reports_missing_years_and_skips_later_sources(capsys, offline, example_data, write_spec):
     example_data["countries"] = ["UZB", "TKM"]
     example_data["variables"][0]["sources"].append(
-        {"source": "nso_uzb", "code": "x", "unit": "constant 2015 US$", "currency": "USD",
+        {"source": "nso_kaz", "code": "x", "unit": "constant 2015 US$", "currency": "USD",
          "price_basis": "constant", "base_year": 2015})
     code, out = run(capsys, "fetch", str(small_spec(example_data, write_spec, keep=("va_agr_real",))))
     assert "missing for TKM: 2000-2023" in out
-    assert "skipped: source 'nso_uzb' is added in Phase 5" in out
+    assert "skipped: there is no connector for 'nso_kaz' yet" in out
 
 
 def test_search_prints_codes_units_and_definitions(capsys, offline):

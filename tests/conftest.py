@@ -59,6 +59,35 @@ class FakeInternet:
         path = request.url.path
         if self.overrides.get(path):
             return self.overrides[path].pop(0)
+        host = request.url.host
+        if host == "rplumber.ilo.org":
+            if path == "/metadata/toc/indicator/":
+                return httpx.Response(200, content=(FIXTURES / "ilostat" / "toc.csv").read_bytes())
+            f = FIXTURES / "ilostat" / f"{request.url.params['id']}_{request.url.params['ref_area']}.csv"
+            return httpx.Response(200, content=f.read_bytes() if f.exists() else b"")
+        if host == "api.imf.org":
+            if "/dataflow/" in path:
+                return httpx.Response(200, content=(FIXTURES / "imf" / "weo_structure.xml").read_bytes())
+            iso3, code = path.rsplit("/", 1)[1].split(".")[:2]
+            f = FIXTURES / "imf" / f"weo_{iso3}_{code}.csv"
+            if f.exists():
+                return httpx.Response(200, content=f.read_bytes())
+            return httpx.Response(404, content=b"<error>NoResultsFound</error>")
+        if host == "bulks-faostat.fao.org":
+            if path.endswith("datasets_E.json"):
+                return httpx.Response(200, content=(FIXTURES / "faostat" / "datasets_E.json").read_bytes())
+            return httpx.Response(200, content=(FIXTURES / "faostat" / "CS.zip").read_bytes())
+        if host == "api.siat.stat.uz":
+            if path == "/sdmx/":
+                return httpx.Response(200, content=(FIXTURES / "siat" / "catalog.json").read_bytes())
+            if path.endswith("/table/download/"):
+                code = path.split("/")[2]
+                if not (FIXTURES / "siat" / f"table_{code}.json").exists():
+                    return httpx.Response(200, json={"detail": "not found"})
+                return httpx.Response(200, json={"file": f"https://api.siat.stat.uz/media/uploads/sdmx/sdmx_data_{code}.json",
+                                                 "updated_at": "2026-07-31T10:14:57+05:00"})
+            code = path.rsplit("_", 1)[1].split(".")[0]
+            return httpx.Response(200, content=(FIXTURES / "siat" / f"table_{code}.json").read_bytes())
         if path == "/v2/source/2/indicator":
             return httpx.Response(200, content=(FIXTURES / "wdi" / "catalog_sample.json").read_bytes())
         if path.startswith("/v2/country/"):

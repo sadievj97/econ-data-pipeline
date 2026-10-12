@@ -253,6 +253,22 @@ def check_breaks(panel: Panel, config: Config, events: list[Event]) -> list[Find
     return findings
 
 
+def check_source_notes(panel: Panel) -> list[Finding]:
+    """The sources' own remarks on values: projections, breaks in series, imputed values."""
+    findings = []
+    for name, r in panel.results.items():
+        for ci, c in enumerate(r.countries):
+            groups: dict[str, list[int]] = {}
+            for yi, year in enumerate(r.years):
+                note = r.note(ci, yi)
+                if note and not np.isnan(r.values[ci, yi]):
+                    groups.setdefault(note, []).append(year)
+            for note, years in sorted(groups.items()):
+                findings.append(Finding("flag", "source_note", name, c,
+                                        f"the source marks {len(years)} value(s) as '{note}': {year_ranges(years)}"))
+    return findings
+
+
 def check_known_values(panel: Panel, known: list[KnownValue]) -> tuple[list[Finding], list[KnownValueResult]]:
     findings, results = [], []
     for kv in known:
@@ -297,6 +313,7 @@ def validate(panel: Panel, config: Config, events: list[Event], known: list[Know
     comparison_findings, comparisons = check_comparisons(panel, config)
     findings += comparison_findings
     findings += check_breaks(panel, config, events)
+    findings += check_source_notes(panel)
     known_findings, known_results = check_known_values(panel, known)
     findings += known_findings
     in_scope = [e for e in events if e.iso3 in panel.countries and panel.years[0] <= e.date.year <= panel.years[-1]]

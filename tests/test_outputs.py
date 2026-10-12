@@ -74,7 +74,7 @@ def test_wide_and_long_csv(spec_file, sources, config):
     assert uzb_2023["labor_share_pwt"] == "0.37945353984832764" and uzb_2023["country"] == "Uzbekistan"
     assert all(r[v] == "" for r in wide if r["iso3"] == "TKM" for v in KEEP)
     long = read_csv(out / "panel_long.csv")
-    assert list(long[0]) == ["variable", "iso3", "country", "year", "value", "flag"]
+    assert list(long[0]) == ["variable", "iso3", "country", "year", "value", "flag", "source_note"]
     assert len(long) == 3 * 24 * len(KEEP)
     assert (out / "panel_wide.csv").read_bytes().count(b"\r") == 0
 
@@ -97,7 +97,7 @@ def test_dta_has_labels_values_and_a_fixed_timestamp(spec_file, sources, config)
 def test_parquet_types_nulls_and_codebook(spec_file, sources, config):
     out = build(spec_file, sources, config).out_dir
     table = pq.read_table(out / "panel.parquet")
-    assert [f.name for f in table.schema] == ["variable", "iso3", "country", "year", "value", "flag"]
+    assert [f.name for f in table.schema] == ["variable", "iso3", "country", "year", "value", "flag", "source_note"]
     assert str(table.schema.field("year").type) == "int32" and str(table.schema.field("value").type) == "double"
     assert table.column("value").null_count == 24 * len(KEEP)  # TKM
     meta = json.loads(table.schema.metadata[b"econ_pipeline"])

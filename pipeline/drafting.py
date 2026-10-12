@@ -23,12 +23,12 @@ import yaml
 
 from .catalog import search
 from .config import Config
-from .connectors import IndicatorInfo, Sources, UnknownCode
+from .connectors import IndicatorInfo, SourceError, Sources, UnknownCode
 from .sectors import AGGREGATES, ISIC4_SECTIONS
 from .spec import SPEC_VERSION, SpecError, parse_spec
 
 FILL_ME = "FILL_ME"
-SEARCHABLE = ("wdi", "pwt")
+SEARCHABLE = ("wdi", "pwt", "ilostat", "imf", "faostat", "nso_uzb")
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_ROUNDS = 25
 SEARCH_LIMIT = 15
@@ -47,16 +47,30 @@ and official definitions from the catalogs itself, and it rejects any number in 
 that does not appear in the request or in the chosen indicator's catalog name.
 
 Tools: search_indicators (keyword search of one catalog), get_indicator (the full catalog entry \
-for one code), and submit_spec (your draft; the pipeline checks it and replies "accepted" or with \
-problems to fix).
+for one code; with a country it also lists the filter choices that code offers there), and \
+submit_spec (your draft; the pipeline checks it and replies "accepted" or with problems to fix).
 
-Sources you can search now:
-- wdi: World Bank World Development Indicators.
-- pwt: Penn World Table 11.0 (real GDP at constant 2021 national prices, capital stock, labour \
-share, persons engaged, hours, human capital, TFP and more).
-ILOSTAT, IMF, FAOSTAT and national statistics offices are not searchable yet. If the request \
-needs them (for example employment counts by sector), use the closest WDI or PWT series and say \
-so in open_questions.
+Sources:
+- wdi: World Bank World Development Indicators. No dataset or filters.
+- pwt: Penn World Table 11.0 (real GDP at constant 2021 national prices, capital stock rnna, \
+labour share labsh, persons engaged emp, hours avh, human capital hc, TFP rtfpna). No filters.
+- ilostat: ILO labour statistics, annual indicators (ids end in _A), for example employment by \
+economic activity in thousands. Filters pick one series: sex (SEX_T is total), classif1 (for \
+example ECO_SECTOR_AGR, ECO_SECTOR_IND, ECO_SECTOR_SER), and source when a country has several \
+surveys. Survey series (EMP_TEMP_...) can have gaps; ILO modelled estimates (EMP_2EMP_...) cover \
+every year. Call get_indicator with a country to see the choices.
+- imf: IMF data. dataset is required: IMF.RES,WEO (World Economic Outlook; values after the \
+latest actual year are projections) or IMF.STA,ANEA (annual national accounts), as shown in \
+search results. Other dimensions of a dataset are filters; get_indicator lists them.
+- faostat: FAO statistics. search finds datasets (for example CS, capital stock in agriculture); \
+call get_indicator with code = the dataset code and a country to list its items, then with \
+code = an item code, dataset = the dataset code and a country to list its elements. A source \
+needs dataset, code (item) and filters element.
+- nso_uzb: Statistics Agency of Uzbekistan (Uzbekistan only), annual tables only; code is the \
+table id from search. Tables with several rows (regions or ISIC sections) need filters row; \
+get_indicator lists the rows. Its "constant prices" tables are often in previous year's prices, \
+which is not a constant-price series: say so in open_questions if you use one.
+Other national statistics offices are not connected: mention any you would need in open_questions.
 
 Guidance:
 - Use only codes that appeared in your search or get results. Try several phrasings if needed, \
@@ -115,10 +129,13 @@ SUBMIT_SCHEMA = _object({
         "label": {"type": "string"},
         "sector": _nullable({"type": "string", "enum": _SECTOR_CODES}),
         "measure": {"type": "string", "enum": ["level", "share", "percent", "growth_rate", "index"]},
-        "sources": {"type": "array", "items": _object({"source": _SOURCE_ENUM, "code": {"type": "string"}}),
-                    "description": "Preferred source first, then same-unit fallbacks."},
+        "sources": {"type": "array", "items": _object({
+            "source": _SOURCE_ENUM, "code": {"type": "string"}, "dataset": _nullable({"type": "string"}),
+            "filters": {"type": "array", "items": _object({"name": {"type": "string"}, "value": {"type": "string"}})},
+        }), "description": "Preferred source first, then same-unit fallbacks."},
         "alternatives": {"type": "array", "items": _object(
-            {"source": _SOURCE_ENUM, "code": {"type": "string"}, "why": {"type": "string"}})},
+            {"source": _SOURCE_ENUM, "code": {"type": "string"}, "dataset": _nullable({"type": "string"}),
+             "why": {"type": "string"}})},
         "note": _nullable({"type": "string"}),
     })},
     "comparisons": {"type": "array", "items": _object({
@@ -138,9 +155,12 @@ TOOLS = [
     },
     {
         "name": "get_indicator",
-        "description": "The full catalog entry for one code: name, unit and the complete official definition.",
+        "description": "The full catalog entry for one code: name, unit and the complete official definition. "
+                       "With a country (ISO3), also the filter choices the code offers for that country "
+                       "(ILOSTAT breakdowns, IMF dimensions, FAOSTAT items or elements, SIAT table rows).",
         "strict": True,
-        "input_schema": _object({"source": _SOURCE_ENUM, "code": {"type": "string"}}),
+        "input_schema": _object({"source": _SOURCE_ENUM, "code": {"type": "string"},
+                                 "dataset": _nullable({"type": "string"}), "country": _nullable({"type": "string"})}),
     },
     {
         "name": "submit_spec",
@@ -195,6 +215,8 @@ def _brief(info: IndicatorInfo, full: bool = False) -> dict[str, Any]:
     definition = info.definition if full else info.definition[:DEFINITION_PREVIEW]
     out = {"code": info.code, "name": info.name, "unit": info.unit.text, "price_basis": info.unit.price_basis,
            "base_year": info.unit.base_year, "currency": info.unit.currency, "definition": definition}
+    if info.details.get("dataset"):
+        out["dataset"] = info.details["dataset"]
     if full and info.details:
         out["details"] = info.details
     return out
@@ -207,21 +229,48 @@ def run_search(sources: Sources, source: str, query: str) -> str:
     return json.dumps({"source": source, "query": query, "results": [_brief(h) for h in hits]}, ensure_ascii=False)
 
 
-def run_get(sources: Sources, source: str, code: str) -> str:
+def run_get(sources: Sources, source: str, code: str, dataset: str | None = None, country: str | None = None) -> str:
     if source not in SEARCHABLE:
         raise ValueError(f"'{source}' cannot be searched yet; use one of {', '.join(SEARCHABLE)}")
-    return json.dumps(_brief(sources.get(source).info(code), full=True), ensure_ascii=False)
+    connector = sources.get(source)
+    out: dict[str, Any] = {}
+    if source == "faostat" and dataset is None:
+        out = {"code": code, "note": "a FAOSTAT dataset; its items are listed below" if country else
+               "a FAOSTAT dataset: call again with a country to list its items"}
+    else:
+        out = _brief(connector.info(code, dataset), full=True)
+    if country and hasattr(connector, "describe"):
+        out["choices"] = connector.describe(code, dataset, country.upper())
+    return json.dumps(out, ensure_ascii=False, default=str)
+
+
+def filter_names(sources: Sources, source: str, dataset: str | None) -> set[str] | None:
+    """The filter names a source accepts (None: no filters at all)."""
+    if source == "ilostat":
+        return {"source", "sex", "classif1", "classif2"}
+    if source == "faostat":
+        return {"element"}
+    if source == "nso_uzb":
+        return {"row"}
+    if source == "imf" and dataset:
+        return set(sources.get("imf").structure(dataset).extra_dims)
+    return None
 
 
 # ---------------------------------------------------------------- assembly
 
 
-def _source_entry(info: IndicatorInfo, to_fill: list[str], where: str) -> dict[str, Any]:
+def _source_entry(info: IndicatorInfo, to_fill: list[str], where: str, dataset: str | None = None,
+                  filters: dict[str, str] | None = None) -> dict[str, Any]:
     unit = info.unit
     entry: dict[str, Any] = {"source": info.source}
     if info.source == "pwt":
         entry["dataset"] = "11.0"
+    elif dataset:
+        entry["dataset"] = dataset
     entry["code"] = info.code
+    if filters:
+        entry["filters"] = dict(sorted(filters.items()))
     entry["unit"] = unit.text or FILL_ME
     if unit.currency is not None:
         entry["currency"] = unit.currency
@@ -280,22 +329,30 @@ def assemble(submission: dict[str, Any], request: str, sources: Sources, config:
         tag = f"variable #{i} ({var['name']})"
         entries, chosen, catalog_numbers = [], [], set()
         for j, src in enumerate(var["sources"], start=1):
+            dataset = src.get("dataset")
+            filters = {f["name"]: f["value"] for f in src.get("filters") or []}
             try:
-                info = sources.get(src["source"]).info(src["code"])
-            except (UnknownCode, ValueError) as exc:
+                allowed_filters = filter_names(sources, src["source"], dataset)
+                bad = sorted(set(filters) - (allowed_filters or set()))
+                if bad:
+                    problems.append(f"{tag}: {src['source']} takes no filter(s) {', '.join(bad)}"
+                                    + (f"; its filters are {', '.join(sorted(allowed_filters))}" if allowed_filters else ""))
+                    continue
+                info = sources.get(src["source"]).info(src["code"], dataset, filters)
+            except (UnknownCode, SourceError, ValueError) as exc:
                 problems.append(f"{tag}: {exc}; search the catalog and use a code from the results")
                 continue
             catalog_numbers |= numbers_in(info.name)
             chosen.append(info)
             entries.append(_source_entry(info, to_fill, f"variables -> {var['name']} -> sources -> "
-                                                        f"#{j} ({info.source} {info.code})"))
+                                                        f"#{j} ({info.source} {info.code})", dataset, filters))
         if not var["sources"]:
             problems.append(f"{tag}: needs at least one source")
         alternatives = []
         for alt in var["alternatives"]:
             try:
-                alt_info = sources.get(alt["source"]).info(alt["code"])
-            except (UnknownCode, ValueError) as exc:
+                alt_info = sources.get(alt["source"]).info(alt["code"], alt.get("dataset"))
+            except (UnknownCode, SourceError, ValueError) as exc:
                 problems.append(f"{tag}: alternative {exc}")
                 continue
             alternatives.append((alt_info, alt["why"]))
@@ -394,7 +451,8 @@ def draft_spec(request: str, *, client: Any, config: Config, sources: Sources,
                     content = run_search(sources, use.input["source"], use.input["query"])
                 elif use.name == "get_indicator":
                     progress(f"  reading {use.input['source']} {use.input['code']}")
-                    content = run_get(sources, use.input["source"], use.input["code"])
+                    content = run_get(sources, use.input["source"], use.input["code"], use.input.get("dataset"),
+                                      use.input.get("country"))
                 elif use.name == "submit_spec":
                     accepted = assemble(use.input, request, sources, config)
                     content = "accepted"
@@ -405,7 +463,7 @@ def draft_spec(request: str, *, client: Any, config: Config, sources: Sources,
                 is_error = True
                 content = "Please fix these problems and submit again:\n- " + "\n- ".join(exc.problems)
                 progress(f"  draft sent back with {len(exc.problems)} problem(s) to fix")
-            except (UnknownCode, ValueError, KeyError) as exc:
+            except (UnknownCode, SourceError, ValueError, KeyError) as exc:
                 is_error = True
                 content = f"Error: {exc}"
             results.append({"type": "tool_result", "tool_use_id": use.id, "content": content, "is_error": is_error})

@@ -30,6 +30,8 @@ from .validate import ValidationReport, range_rule
 
 PANEL_FILES = ("panel_long.csv", "panel_wide.csv", "panel.parquet", "panel.dta",
                "codebook.md", "codebook.csv", "load_and_check.R", "load_and_check.do")
+GROWTH_FILES = ("growth_accounting.md", "growth_accounting_annual.csv", "growth_accounting_summary.csv",
+                "growth_accounting.R", "growth_accounting.do")
 KEY_LABELS = {"iso3": "ISO 3166-1 alpha-3 country code", "country": "Country name", "year": "Year"}
 SOURCE_NAMES = {
     "wdi": "World Bank, World Development Indicators",
@@ -46,7 +48,8 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 CODEBOOK_COLUMNS = ["variable", "label", "sector", "sector_label", "measure", "unit", "currency", "price_basis",
                     "base_year", "precision", "source", "code", "dataset", "source_name", "definition",
                     "countries_from_source", "retrieved_at", "source_last_updated", "raw_files", "raw_sha256",
-                    "transforms", "observations", "missing", "first_year", "last_year", "filled_by_transforms"]
+                    "transforms", "observations", "missing", "first_year", "last_year", "filled_by_transforms",
+                    "source_notes"]
 
 
 # ------------------------------------------------------------- tables
@@ -71,7 +74,8 @@ def long_rows(panel: Panel) -> list[list[Any]]:
     for name, r in panel.results.items():
         for ci, c in enumerate(r.countries):
             for yi, year in enumerate(r.years):
-                rows.append([name, c, names[c], year, _cell(r.values[ci, yi], r.precision), r.flags[ci][yi]])
+                rows.append([name, c, names[c], year, _cell(r.values[ci, yi], r.precision), r.flags[ci][yi],
+                             r.note(ci, yi)])
     return rows
 
 
@@ -155,8 +159,19 @@ def codebook_rows(panel: Panel) -> list[dict[str, str]]:
             "first_year": str(years_with_data[0]) if years_with_data else "",
             "last_year": str(years_with_data[-1]) if years_with_data else "",
             "filled_by_transforms": str(sum(1 for row in r.flags for f in row if f)),
+            "source_notes": "; ".join(f"{n} ({k})" for n, k in sorted(_note_counts(r).items())),
         })
     return out
+
+
+def _note_counts(r) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for ci in range(len(r.countries)):
+        for yi in range(len(r.years)):
+            note = r.note(ci, yi)
+            if note and not np.isnan(r.values[ci, yi]):
+                counts[note] = counts.get(note, 0) + 1
+    return counts
 
 
 def codebook_csv(rows: list[dict[str, str]]) -> str:
@@ -173,7 +188,8 @@ def codebook_markdown(panel: Panel, rows: list[dict[str, str]], report: Validati
            "| file | contents |", "|---|---|",
            "| panel_wide.csv | one row per country-year, one column per variable |",
            "| panel_long.csv | one row per country-year-variable, with a `flag` column naming any transform that "
-           "created the value (empty means exactly as published) |",
+           "created the value (empty means exactly as published) and a `source_note` column with the source's own "
+           "remark on the value (for example IMF projection, break in series, imputed value) |",
            "| panel.parquet | the long panel with typed columns; this codebook is stored in its metadata |",
            "| panel.dta | the wide panel for Stata 14 or newer, with variable labels |",
            "| codebook.md, codebook.csv | this codebook, as text and as a table |",
@@ -204,6 +220,7 @@ def codebook_markdown(panel: Panel, rows: list[dict[str, str]], report: Validati
                 + (f" (source last updated {row['source_last_updated']})" if row["source_last_updated"] else "") + " |",
                 f"| Raw files | {row['raw_files'].replace('; ', '<br>')} |",
                 f"| Transforms | {row['transforms']} |",
+                f"| Source notes | {row['source_notes'] or 'none'} |",
                 f"| Values | {row['observations']} present, {row['missing']} missing; years with data "
                 f"{row['first_year'] or 'none'}-{row['last_year'] or 'none'}; {row['filled_by_transforms']} "
                 "created by transforms |",
@@ -226,7 +243,7 @@ def codebook_markdown(panel: Panel, rows: list[dict[str, str]], report: Validati
 
 def write_parquet(panel: Panel, rows: list[dict[str, str]], path: Path) -> None:
     names = {c: country_name(c) or "" for c in panel.countries}
-    variables, iso3, countries, years, values, flags = [], [], [], [], [], []
+    variables, iso3, countries, years, values, flags, notes = [], [], [], [], [], [], []
     for name, r in panel.results.items():
         for ci, c in enumerate(r.countries):
             for yi, year in enumerate(r.years):
@@ -236,6 +253,7 @@ def write_parquet(panel: Panel, rows: list[dict[str, str]], path: Path) -> None:
                 years.append(year)
                 values.append(r.values[ci, yi])
                 flags.append(r.flags[ci][yi] or None)
+                notes.append(r.note(ci, yi) or None)
     vals = np.array(values, dtype="float64")
     table = pa.table({
         "variable": pa.array(variables, pa.string()),
@@ -244,6 +262,7 @@ def write_parquet(panel: Panel, rows: list[dict[str, str]], path: Path) -> None:
         "year": pa.array(years, pa.int32()),
         "value": pa.array(vals, pa.float64(), mask=np.isnan(vals)),
         "flag": pa.array(flags, pa.string()),
+        "source_note": pa.array(notes, pa.string()),
     })
     meta = {"spec": panel.spec.name, "title": panel.spec.title, "codebook": rows}
     table = table.replace_schema_metadata({"econ_pipeline": json.dumps(meta, sort_keys=True, ensure_ascii=False)})
@@ -371,7 +390,8 @@ def r_script(panel: Panel, rows: list[dict[str, str]], report: ValidationReport,
                        f"abs({_num(kv.value)}), \"{kv.variable} {kv.iso3} {kv.year} = {_num(kv.value)}\")")
     out += ["", "# The long file holds the same values as the wide file",
             "long <- read.csv(file.path(here, \"panel_long.csv\"), colClasses = c(variable = \"character\", "
-            "iso3 = \"character\", country = \"character\", year = \"integer\", value = \"numeric\", flag = \"character\"),",
+            "iso3 = \"character\", country = \"character\", year = \"integer\", value = \"numeric\", flag = \"character\", "
+            "source_note = \"character\"),",
             "                 na.strings = \"\", fileEncoding = \"UTF-8\")",
             f"check(nrow(long) == {len(names) * len(panel.countries) * len(panel.years)}L, \"panel_long.csv has every value\")",
             "for (v in setdiff(names(panel), c(\"iso3\", \"country\", \"year\"))) {",
@@ -459,7 +479,7 @@ def stata_script(panel: Panel, rows: list[dict[str, str]], report: ValidationRep
 
 
 def write_outputs(panel: Panel, report: ValidationReport, config: Config, out_dir: Path,
-                  retrieved: list[str], log: DataLog) -> list[Path]:
+                  retrieved: list[str], log: DataLog, growth_result=None) -> list[Path]:
     rows = codebook_rows(panel)
     written = []
 
@@ -468,7 +488,7 @@ def write_outputs(panel: Panel, report: ValidationReport, config: Config, out_di
         path.write_text(content, encoding="utf-8", newline="\n")
         written.append(path)
 
-    text("panel_long.csv", _csv(["variable", "iso3", "country", "year", "value", "flag"], long_rows(panel)))
+    text("panel_long.csv", _csv(["variable", "iso3", "country", "year", "value", "flag", "source_note"], long_rows(panel)))
     text("panel_wide.csv", wide_csv(panel))
     write_parquet(panel, rows, out_dir / "panel.parquet")
     written.append(out_dir / "panel.parquet")
@@ -487,6 +507,18 @@ def write_outputs(panel: Panel, report: ValidationReport, config: Config, out_di
     if dta_label(panel.spec.title) != panel.spec.title:
         lines.append("panel.dta: dataset label shortened to Stata's 80-character limit; the full title is in codebook.md")
     lines.append("also written: codebook.md, codebook.csv, load_and_check.R, load_and_check.do")
+    if growth_result is not None:
+        from . import growth
+
+        ga = panel.spec.growth_accounting
+        text("growth_accounting_annual.csv", growth.annual_csv(growth_result))
+        text("growth_accounting_summary.csv", growth.summary_csv(growth_result))
+        text("growth_accounting.md", growth.markdown(growth_result, panel, ga))
+        text("growth_accounting.R", growth.r_script(growth_result, panel, ga))
+        text("growth_accounting.do", growth.stata_script(growth_result, panel, ga))
+        n_rules = sum(len(r) for r in growth_result.rules.values())
+        lines.append(f"growth accounting: {len(growth_result.scopes)} scope(s), {n_rules} labor-share rule(s), "
+                     f"{len(growth_result.annual)} annual rows, {len(growth_result.summary)} period averages")
     log.add("Outputs", *lines)
     return written
 
@@ -495,7 +527,7 @@ def remove_stale_outputs(out_dir: Path) -> list[Path]:
     """After a failed build, remove panel files an earlier build left, so out/ never
     holds a panel that the current validation report does not vouch for."""
     removed = []
-    for name in PANEL_FILES:
+    for name in PANEL_FILES + GROWTH_FILES:
         path = out_dir / name
         if path.is_file():
             path.unlink()

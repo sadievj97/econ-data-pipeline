@@ -46,15 +46,19 @@ class VariableResult:
     unit: dict[str, Any]  # unit, currency, price_basis, base_year of the final series
     precision: str  # "float32" when values are a source's 4-byte floats, otherwise "float64"
     transforms: list[str] = field(default_factory=list)  # plain-language record of each transform applied
+    notes: list[list[str]] = field(default_factory=list)  # same shape; the source's own remark on a value, if any
 
     def row(self, iso3: str) -> np.ndarray:
         return self.values[self.countries.index(iso3)]
 
+    def note(self, ci: int, yi: int) -> str:
+        return self.notes[ci][yi] if self.notes else ""
+
     def frame(self) -> pd.DataFrame:
-        rows = [(c, y, self.values[ci, yi], self.flags[ci][yi])
+        rows = [(c, y, self.values[ci, yi], self.flags[ci][yi], self.note(ci, yi))
                 for ci, c in enumerate(self.countries) for yi, y in enumerate(self.years)]
-        return pd.DataFrame(rows, columns=["iso3", "year", "value", "flag"]).astype(
-            {"iso3": "string", "year": "int64", "value": "float64", "flag": "string"})
+        return pd.DataFrame(rows, columns=["iso3", "year", "value", "flag", "source_note"]).astype(
+            {"iso3": "string", "year": "int64", "value": "float64", "flag": "string", "source_note": "string"})
 
 
 @dataclass
@@ -74,7 +78,7 @@ class Panel:
             f.insert(0, "variable", name)
             frames.append(f)
         if not frames:
-            return pd.DataFrame(columns=["variable", "iso3", "year", "value", "flag"])
+            return pd.DataFrame(columns=["variable", "iso3", "year", "value", "flag", "source_note"])
         out = pd.concat(frames, ignore_index=True)
         out["variable"] = out["variable"].astype("string")
         return out
@@ -228,19 +232,22 @@ def _build_variable(v: Variable, spec: Spec, fetched: dict[tuple[str, int], Fetc
 
     values = np.full((len(countries), len(years)), np.nan)
     flags = [["" for _ in years] for _ in countries]
+    notes = [["" for _ in years] for _ in countries]
     for ci, c in enumerate(countries):
         i = source_for[c]
         if i is None:
             continue
         sub = available[i][available[i]["iso3"] == c]
-        for year, value in zip(sub["year"].tolist(), sub["value"].tolist()):
+        sub_notes = sub["note"].fillna("").tolist() if "note" in sub else [""] * len(sub)
+        for year, value, note in zip(sub["year"].tolist(), sub["value"].tolist(), sub_notes):
             values[ci, year - start] = value
+            notes[ci][year - start] = str(note)
 
     first = used[0] if used else 0
     first_series = fetched.get((v.name, first))
     storage = first_series.info.details.get("storage_type") if first_series is not None else None
     result = VariableResult(v, countries, years, values, flags, source_for, unit_of(v.sources[first]),
-                            "float32" if storage == "float" else "float64")
+                            "float32" if storage == "float" else "float64", notes=notes)
     if result.precision == "float32":
         lines.append("precision: the source stores these values as 4-byte floats (about 7 significant digits)")
     log.add("Source and years", *lines, variable=v.name)
@@ -420,6 +427,8 @@ def _splice(t: Splice, r: VariableResult, available: dict[int, pd.DataFrame], v:
             added += not had
             r.values[ci, k] = orow[k] * ratio
             r.flags[ci][k] = _add_flag(r.flags[ci][k], flag)
+            if r.notes:
+                r.notes[ci][k] = ""
         lines.append(f"{c}: ratio {ratio!r}; {replaced} preferred-source values replaced, {added} added, "
                      f"{dropped} removed because {ref.source} has no value there")
     return lines

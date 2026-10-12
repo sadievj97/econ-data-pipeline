@@ -19,7 +19,8 @@ SOURCE_PROBLEMS = (SourceError, DownloadError, CacheIntegrityError)
 
 def open_sources(config: Config, pins: dict[str, str] | None = None) -> Sources:
     cache = RawCache(config.folder("raw_cache"), pins=pins)
-    return Sources(cache, make_client(config.http.timeout_seconds), attempts=config.http.attempts)
+    return Sources(cache, make_client(config.http.timeout_seconds), attempts=config.http.attempts,
+                   manual_dir=config.folder("manual"))
 
 
 def _pins_for(spec_path: Path, refresh: bool) -> dict[str, str] | None:
@@ -73,6 +74,26 @@ def cmd_search(args: argparse.Namespace) -> int:
         if h.definition and h.definition != h.name:
             print(textwrap.fill(h.definition[:400], width=100, initial_indent="    ", subsequent_indent="    "))
         print()
+    return 0
+
+
+def cmd_describe(args: argparse.Namespace) -> int:
+    import json
+
+    sources = open_sources(load_config())
+    try:
+        connector = sources.get(args.source)
+        if not hasattr(connector, "describe"):
+            info = connector.info(args.code, args.dataset)
+            print(f"{info.code}  {info.name}\n    unit: {info.unit.text or 'not stated'}\n    {info.definition}")
+            return 0
+        result = connector.describe(args.code, args.dataset, args.country.upper())
+    except SOURCE_PROBLEMS as exc:
+        print(exc)
+        return 1
+    finally:
+        sources.close()
+    print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -150,7 +171,7 @@ def _free_path(path: Path) -> Path:
 def cmd_request(args: argparse.Namespace) -> int:
     import anthropic
 
-    from .drafting import SEARCHABLE, DraftError, draft_spec, draft_yaml, review_markdown
+    from .drafting import DraftError, draft_spec, draft_yaml, review_markdown
     from .envfile import MissingKeyError, get_key
 
     config = load_config()
@@ -162,8 +183,9 @@ def cmd_request(args: argparse.Namespace) -> int:
 
     sources = open_sources(config)
     try:
-        print("Loading the WDI and PWT 11.0 catalogs (downloaded once, then reused from data/raw/)...")
-        for name in SEARCHABLE:
+        print("Loading the WDI and PWT 11.0 catalogs (downloaded once, then reused from data/raw/);")
+        print("other catalogs load the first time Claude searches them...")
+        for name in ("wdi", "pwt"):
             sources.get(name).catalog()
         print(f"Asking {config.models.spec_drafting} to draft a spec:")
         client = anthropic.Anthropic(api_key=key, max_retries=3)
@@ -299,10 +321,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_request)
 
     p = sub.add_parser("search", help="search a source's indicator catalog")
-    p.add_argument("source", choices=["wdi", "pwt"])
+    p.add_argument("source", choices=["wdi", "pwt", "ilostat", "imf", "faostat", "nso_uzb"])
     p.add_argument("query", help="words to look for, in quotes")
     p.add_argument("--limit", type=int, default=10)
     p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser("describe", help="list the filter choices an indicator offers for one country")
+    p.add_argument("source", choices=["wdi", "pwt", "ilostat", "imf", "faostat", "nso_uzb"])
+    p.add_argument("code", help="indicator code (for FAOSTAT: an item code, or a dataset code to list its items)")
+    p.add_argument("--dataset", help="IMF dataset such as IMF.RES,WEO, or FAOSTAT dataset such as CS")
+    p.add_argument("--country", default="UZB", help="ISO3 country code (default UZB)")
+    p.set_defaults(func=cmd_describe)
 
     p = sub.add_parser("check-spec", help="check a spec file and summarize it")
     p.add_argument("spec", help="path to a spec .yaml file")

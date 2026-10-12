@@ -92,6 +92,12 @@ def run_build(spec_path: Path, spec: Spec, sources: Sources, config: Config, eve
     progress("Validating...")
     known = load_known_values(known_values_path(spec_path))
     report = validate(panel, config, events, known, extra)
+    growth_result = None
+    if spec.growth_accounting is not None:
+        from . import growth
+
+        growth_result = growth.run(panel, spec.growth_accounting, config)
+        report.findings += [Finding("error", "growth_accounting", None, None, e) for e in growth_result.errors]
     log.add("Validation", f"{len(report.errors)} error(s), {len(report.flags)} flag(s)",
             f"known values checked: {len(report.known)}, matched: {sum(k.matched for k in report.known)}",
             f"missing country-years across all variables: {len(report.missing)}")
@@ -111,7 +117,7 @@ def run_build(spec_path: Path, spec: Spec, sources: Sources, config: Config, eve
                    if result.removed else ""))
     else:
         progress("Writing outputs...")
-        result.written += write_outputs(panel, report, config, out_dir, retrieved, log)
+        result.written += write_outputs(panel, report, config, out_dir, retrieved, log, growth_result)
     result.written.append(_write(out_dir / "data_log.md", log.markdown(spec.title)))
 
     if not any(f.check == "fetch" for f in report.errors):

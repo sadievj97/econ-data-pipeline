@@ -261,6 +261,55 @@ class Comparison(_Strict):
     threshold: float = Field(gt=0)
 
 
+class SectorAccounting(_Strict):
+    """Growth accounting for one sector. Without capital, only labor productivity is reported."""
+
+    sector: str
+    output: str
+    labor: str
+    capital: str | None = None
+    labor_share: str | float | None = None  # a variable or a number; default: the economy-wide labor_share
+
+
+class GrowthAccounting(_Strict):
+    """TFP growth as a Solow residual: g_A = g_Y - (1 - s) g_K - s g_L, with log growth
+    rates and labor share s (a variable, averaged over adjacent years, or a number you choose)."""
+
+    output: str
+    capital: str
+    labor: str
+    hours: str | None = None  # average hours per worker: labor input = workers x hours
+    human_capital: str | None = None  # human capital index: labor input x index
+    labor_share: str | float
+    sensitivity: list[float] = Field(default_factory=list)  # constant labor shares to compare
+    periods: list[tuple[int, int]] = Field(default_factory=list)  # sub-periods, e.g. [[2000, 2008], [2009, 2023]]
+    compare_with: str | None = None  # a TFP series (index or level) whose growth is compared with the residual
+    sectors: list[SectorAccounting] = Field(default_factory=list)
+
+    @field_validator("sensitivity")
+    @classmethod
+    def _shares(cls, v: list[float]) -> list[float]:
+        bad = [s for s in v if not 0 < s < 1]
+        if bad:
+            raise ValueError(f"sensitivity labor shares must be between 0 and 1, not {bad}")
+        return v
+
+    def variables_used(self) -> list[tuple[str, str]]:
+        """(role, variable name) for every variable this section refers to."""
+        used = [("output", self.output), ("capital", self.capital), ("labor", self.labor)]
+        used += [(role, name) for role, name in (("hours", self.hours), ("human_capital", self.human_capital),
+                                                 ("compare_with", self.compare_with)) if name]
+        if isinstance(self.labor_share, str):
+            used.append(("labor_share", self.labor_share))
+        for s in self.sectors:
+            used += [(f"{s.sector} output", s.output), (f"{s.sector} labor", s.labor)]
+            if s.capital:
+                used.append((f"{s.sector} capital", s.capital))
+            if isinstance(s.labor_share, str):
+                used.append((f"{s.sector} labor_share", s.labor_share))
+        return used
+
+
 class Spec(_Strict):
     spec_version: Literal[1]
     name: str
@@ -273,6 +322,7 @@ class Spec(_Strict):
     source_choice: Literal["same_for_all", "per_country"] = "same_for_all"
     variables: list[Variable] = Field(min_length=1)
     comparisons: list[Comparison] = Field(default_factory=list)
+    growth_accounting: GrowthAccounting | None = None
 
     @field_validator("name")
     @classmethod
@@ -327,9 +377,39 @@ class Spec(_Strict):
                     problems.append(f"comparison #{i}: '{side}' is not a variable in this spec")
             if c.a == c.b:
                 problems.append(f"comparison #{i}: compares '{c.a}' with itself")
+        problems += self._growth_problems(known)
         if problems:
             raise ValueError("\n".join(problems))
         return self
+
+
+    def _growth_problems(self, known: set[str]) -> list[str]:
+        ga = self.growth_accounting
+        if ga is None:
+            return []
+        problems = []
+        by_name = {v.name: v for v in self.variables}
+        for role, name in ga.variables_used():
+            if name not in known:
+                problems.append(f"growth_accounting {role}: '{name}' is not a variable in this spec")
+        for role, name in (("output", ga.output), ("capital", ga.capital)):
+            v = by_name.get(name)
+            if v is not None and any(s.price_basis != "constant" for s in v.sources):
+                problems.append(f"growth_accounting {role}: '{name}' must be at constant prices")
+        shares = [("labor_share", ga.labor_share)] + [(f"{s.sector} labor_share", s.labor_share) for s in ga.sectors]
+        for role, share in shares:
+            if isinstance(share, float) and not 0 < share < 1:
+                problems.append(f"growth_accounting {role}: {share} must be between 0 and 1")
+            if isinstance(share, str) and share in by_name and by_name[share].measure != "share":
+                problems.append(f"growth_accounting {role}: '{share}' must have measure: share (a fraction from 0 to 1)")
+        for start, end in ga.periods:
+            if not (self.years.start <= start < end <= self.years.end):
+                problems.append(f"growth_accounting period [{start}, {end}] must lie inside the spec's years "
+                                f"and start before it ends")
+        for s in ga.sectors:
+            if self.sector_classification is None or s.sector not in CLASSIFICATIONS[self.sector_classification]:
+                problems.append(f"growth_accounting sector '{s.sector}' is not part of the spec's sector_classification")
+        return problems
 
 
 # ------------------------------------------------------ loading and saving
