@@ -1,0 +1,87 @@
+{
+  "about": "Raw snapshots this spec was built from. Rebuild with --refresh to download again.",
+  "lock_version": 1,
+  "snapshots": {
+    "pwt/11.0/pwt110.dta": {
+      "retrieved_at": "2026-10-09T18:49:50Z",
+      "sha256": "2a0d214958dd46ad6cb9966f5dfa2fc8ad546475c79ed70564caf7383777aaa1",
+      "snapshot": "20261009T184950Z"
+    },
+    "wdi/catalog": {
+      "retrieved_at": "2026-10-09T18:48:09Z",
+      "sha256": "0be8ae4f5528f3d726e49c0423e84a6dbbafe82ff4ddfcce49cc76ac9e6dc1bc",
+      "snapshot": "20261009T184809Z"
+    },
+    "wdi/data/NE.GDI.FTOT.KD/KAZ": {
+      "retrieved_at": "2026-10-09T18:49:46Z",
+      "sha256": "c9980cc1f23028483ba5f5b02b3d38a6d9d9383e956e530da196778d3ea8112d",
+      "snapshot": "20261009T184946Z"
+    },
+    "wdi/data/NE.GDI.FTOT.KD/UZB": {
+      "retrieved_at": "2026-10-09T18:49:42Z",
+      "sha256": "3d0bbd9a18a25950c247bef635f23a08591633245e154af4ba44bb45406c957f",
+      "snapshot": "20261009T184942Z"
+    },
+    "wdi/data/NV.AGR.TOTL.KD/KAZ": {
+      "retrieved_at": "2026-10-09T18:48:09Z",
+      "sha256": "4e48953ce9e1006142cd108c4e0587978b6b9349a3722ce90454458e752f9558",
+      "snapshot": "20261009T184809Z"
+    },
+    "wdi/data/NV.AGR.TOTL.KD/UZB": {
+      "retrieved_at": "2026-10-09T18:48:09Z",
+      "sha256": "59dc089b866256e29cb08e40757f46805f46b02bb7e6aeb5559b7fb26b846aa4",
+      "snapshot": "20261009T184809Z"
+    },
+    "wdi/data/NV.IND.TOTL.KD/KAZ": {
+      "retrieved_at": "2026-10-09T18:48:10Z",
+      "sha256": "ee704244019388a220ac22da5a7ca42a8a7fe3a934374bfc0bca899c5cedd0e6",
+      "snapshot": "20261009T184810Z"
+    },
+    "wdi/data/NV.IND.TOTL.KD/UZB": {
+      "retrieved_at": "2026-10-09T18:48:10Z",
+      "sha256": "2e2318af6fddf644318b3033a904451454e56fc2551470865fa16a29c23d2404",
+      "snapshot": "20261009T184810Z"
+    },
+    "wdi/data/NV.SRV.TOTL.KD/KAZ": {
+      "retrieved_at": "2026-10-09T18:48:11Z",
+      "sha256": "ebcbc28b677a403536bf47325cf2ac7596300d10d035b771784abcbe18838266",
+      "snapshot": "20261009T184811Z"
+    },
+    "wdi/data/NV.SRV.TOTL.KD/UZB": {
+      "retrieved_at": "2026-10-09T18:48:10Z",
+      "sha256": "ba10ce153ceb3d5dab23022e293b7fa1812cdc7c05632a2b47cc442eb45ac2fc",
+      "snapshot": "20261009T184810Z"
+    },
+    "wdi/data/SL.AGR.EMPL.ZS/KAZ": {
+      "retrieved_at": "2026-10-09T18:48:11Z",
+      "sha256": "cf484c5803992183d077cbab5e10c947d98e37e76cac79258ee660b50274c1c7",
+      "snapshot": "20261009T184811Z"
+    },
+    "wdi/data/SL.AGR.EMPL.ZS/UZB": {
+      "retrieved_at": "2026-10-09T18:48:11Z",
+      "sha256": "5bd1d22980933a1f86dcb7550b970400ca37153ad19176544892daf9b853061e",
+      "snapshot": "20261009T184811Z"
+    },
+    "wdi/data/SL.IND.EMPL.ZS/KAZ": {
+      "retrieved_at": "2026-10-09T18:48:12Z",
+      "sha256": "dc40acaabec2c7d3801c4409e537ccceb609c9dcb0beab6a3867f2ec9151352a",
+      "snapshot": "20261009T184812Z"
+    },
+    "wdi/data/SL.IND.EMPL.ZS/UZB": {
+      "retrieved_at": "2026-10-09T18:48:11Z",
+      "sha256": "6d5802caf9e3a05739ccd779e4784c45d88e14d584dd3946695bf68a6f32f535",
+      "snapshot": "20261009T184811Z"
+    },
+    "wdi/data/SL.SRV.EMPL.ZS/KAZ": {
+      "retrieved_at": "2026-10-09T18:49:22Z",
+      "sha256": "c0dba47cd3263960d1efbe568fe3fb2637c79251167593ee59575560ba2e6d10",
+      "snapshot": "20261009T184922Z"
+    },
+    "wdi/data/SL.SRV.EMPL.ZS/UZB": {
+      "retrieved_at": "2026-10-09T18:48:12Z",
+      "sha256": "0f4aa1220f7a51cdce7bcccfc585f908b3b353ed256aeeaaccf1a3ea80d9416a",
+      "snapshot": "20261009T184812Z"
+    }
+  },
+  "spec": "uzb_kaz_sectoral_2000_2023"
+}
