@@ -265,6 +265,9 @@ growth_accounting:
   capital: capital_real_pwt
   labor: emp_total
   labor_share: labsh
+  # Before and after Uzbekistan's 2017 currency reform. A period [start, end] averages the growth
+  # rates of start+1 to end, so these cover growth in 2001-2016 and 2017-2023 with no year left out.
+  periods: [[2000, 2016], [2016, 2023]]
   sectors:
   - {sector: AGR, output: va_agr, labor: emp_agr, capital: k_agr}
   - {sector: IND, output: va_ind, labor: emp_ind}
