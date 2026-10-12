@@ -1,8 +1,9 @@
 """Seed a spec's known-values file from official files the pipeline does NOT use.
 
-The pipeline reads WDI through its JSON API and PWT from the Stata file. This
-script reads the same numbers from different official downloads (the World
-Bank's per-indicator CSV download and PWT's Excel workbook), so a match is an
+The pipeline reads WDI through its JSON API, ILOSTAT through rplumber.ilo.org
+and PWT from the Stata file. This script reads the same numbers from different
+official downloads (the World Bank's per-indicator CSV download, ILO's SDMX
+service at sdmx.ilo.org, and PWT's Excel workbook), so a match is an
 independent check. Numbers are copied by this code, never typed by hand.
 Downloads go into data/raw/ like every other raw file.
 
@@ -33,14 +34,34 @@ from pipeline.connectors.pwt import DATAVERSE, DOI  # noqa: E402
 from pipeline.known_values import known_values_path  # noqa: E402
 from pipeline.spec import load_spec  # noqa: E402
 
-# (variable in the spec, source, code, country, year)
+# (variable in the spec, source, code, country, year). For ILO, code is (SDMX dataflow, series key).
+# Two PWT picks (labsh KAZ 2010, emp UZB 2019) were replaced on 2026-10-12 while the PWT
+# Dataverse was down; "pwt" picks still work if added back.
 PICKS = [
     ("va_agr", "wdi", "NV.AGR.TOTL.KD", "UZB", 2015),
     ("va_ser", "wdi", "NV.SRV.TOTL.KD", "KAZ", 2020),
     ("gfcf", "wdi", "NE.GDI.FTOT.KD", "UZB", 2023),
-    ("labsh", "pwt", "labsh", "KAZ", 2010),
-    ("emp_total", "pwt", "emp", "UZB", 2019),
+    ("va_ind", "wdi", "NV.IND.TOTL.KD", "KAZ", 2010),
+    ("emp_agr", "ilo_sdmx", ("DF_EMP_2EMP_SEX_ECO_NB", "UZB.A..SEX_T.ECO_SECTOR_AGR"), "UZB", 2019),
 ]
+ILO_SDMX = "https://sdmx.ilo.org/rest/data"
+
+
+def ilo_sdmx_value(cache: RawCache, client, flow: str, key: str, year: int) -> tuple[float, str]:
+    cache_key = f"ilostat/sdmx/{flow}/{key}"
+    snap = cache.latest(cache_key)
+    if snap is None:
+        url = f"{ILO_SDMX}/ILO,{flow}/{key}"
+        response = net.get(client, url, {"format": "csv"})
+        if not response.content.decode("utf-8-sig", errors="replace").startswith("DATAFLOW"):
+            raise SystemExit(f"ILO SDMX sent an unexpected reply for {flow} {key}")
+        snap = cache.store(cache_key, "data.csv", response.content,
+                           {"source": "ilostat", "url": url, "params": {"format": "csv"}})
+    rows = [r for r in csv.DictReader(io.StringIO(snap.read_bytes().decode("utf-8-sig"))) if r["TIME_PERIOD"] == str(year)]
+    if len(rows) != 1:
+        raise SystemExit(f"ILO SDMX {flow} {key} has {len(rows)} values for {year}")
+    unit = f"unit multiplier 10^{rows[0].get('UNIT_MULT')}" if rows[0].get("UNIT_MULT") else "units"
+    return float(rows[0]["OBS_VALUE"]), f"ILO SDMX service, dataflow {flow}, series {key} ({unit}), {snap.relative_file()}"
 
 
 def wdi_csv_zip(cache: RawCache, client, code: str) -> Snapshot:
@@ -135,6 +156,9 @@ def main(spec_file: str) -> None:
         for variable, src, code, iso3, year in PICKS:
             if src == "wdi":
                 value, note = wdi_csv_value(wdi_csv_zip(cache, client, code), code, iso3, year)
+            elif src == "ilo_sdmx":
+                value, note = ilo_sdmx_value(cache, client, code[0], code[1], year)
+                code = code[0]
             elif (code, iso3, year) in pwt_found:
                 value, note = pwt_found[(code, iso3, year)], pwt_note
             else:

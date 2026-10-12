@@ -23,3 +23,15 @@ values:
   value: 53670926225.9319
   source: 'NE.GDI.FTOT.KD: World Bank WDI CSV download API_NE.GDI.FTOT.KD_DS2_en_csv_v2_3726.csv (last updated 2026-10-08),
     data/raw/wdi/bulk_csv/NE.GDI.FTOT.KD/20261012T181909Z/NE.GDI.FTOT.KD.zip'
+- variable: va_ind
+  iso3: KAZ
+  year: 2010
+  value: 51806027784.1561
+  source: 'NV.IND.TOTL.KD: World Bank WDI CSV download API_NV.IND.TOTL.KD_DS2_en_csv_v2_2860.csv (last updated 2026-10-08),
+    data/raw/wdi/bulk_csv/NV.IND.TOTL.KD/20261012T203248Z/NV.IND.TOTL.KD.zip'
+- variable: emp_agr
+  iso3: UZB
+  year: 2019
+  value: 3282.039
+  source: 'DF_EMP_2EMP_SEX_ECO_NB: ILO SDMX service, dataflow DF_EMP_2EMP_SEX_ECO_NB, series UZB.A..SEX_T.ECO_SECTOR_AGR (unit
+    multiplier 10^3), data/raw/ilostat/sdmx/DF_EMP_2EMP_SEX_ECO_NB/UZB.A..SEX_T.ECO_SECTOR_AGR/20261012T203251Z/data.csv'
