@@ -1,0 +1,170 @@
+# DRAFT spec, written by claude-opus-5-5 on 2026-10-12 from the request below.
+# Nothing has been downloaded yet. Before building:
+#   1. Check each code and its official definition (alternatives are in uzb_kaz_sectoral_2000_2023.review.md).
+#   2. Change confirmed: false to confirmed: true.
+# Questions from the drafting step:
+#   - Sectoral employment counts are not available in WDI or PWT; should the pipeline multiply the WDI sectoral employment shares by PWT persons engaged (a transformation to add to the spec), or wait for ILOSTAT counts once it is searchable?
+#   - The WDI sectoral employment shares are modeled ILO estimates, and for Uzbekistan these may differ from national statistics; is that acceptable?
+#   - Should real value added and GFCF be in constant US$ (cross-country comparable) or in constant local currency (closer to national accounts)?
+#   - Gross fixed capital formation was taken in real terms to match real value added; do you prefer it as percent of GDP or in current prices instead?
+#   - PWT labsh is economy-wide only and for Central Asian countries is often imputed rather than taken from national accounts; is that acceptable, or do you need sectoral labour shares from national sources?
+
+spec_version: 1
+name: uzb_kaz_sectoral_2000_2023
+title: 'Uzbekistan and Kazakhstan: real value added and employment by broad sector, GFCF and labour share,
+  2000-2023'
+request: 'Uzbekistan and Kazakhstan, 2000-2023: real value added and employment by broad sector, gross
+  fixed capital formation, labor share'
+confirmed: false
+countries:
+- UZB
+- KAZ
+years:
+  start: 2000
+  end: 2023
+sector_classification: isic4_3sector
+source_choice: same_for_all
+variables:
+- name: va_agr
+  label: Agriculture, forestry, and fishing, value added (constant 2015 US$)
+  sector: AGR
+  measure: level
+  sources:
+  - source: wdi
+    code: NV.AGR.TOTL.KD
+    unit: constant 2015 US$
+    currency: USD
+    price_basis: constant
+    base_year: 2015
+    definition: Agriculture, forestry, and fishing corresponds to ISIC (Rev. 4) divisions 01-03 and includes
+      the exploitation of vegetal and animal natural resources, comprising the activities of growing of
+      crops, raising and breeding of animals, harvesting of timber and other plants, animals or animal
+      products from a farm or their natural habitats.Value added is the contribution to the economy by
+      a producer or an industry or an institutional sector, which is estimated by the total value of output
+      produced and deducting the total value of intermediate consumption of goods and services used to
+      produce that output. This indicator is expressed in constant prices, meaning the series has been
+      adjusted to account for price changes over time. The reference year for this adjustment is 2015.
+      This indicator is expressed in United States dollars.
+- name: va_ind
+  label: Industry (including construction), value added (constant 2015 US$)
+  sector: IND
+  measure: level
+  sources:
+  - source: wdi
+    code: NV.IND.TOTL.KD
+    unit: constant 2015 US$
+    currency: USD
+    price_basis: constant
+    base_year: 2015
+    definition: Industry (including construction) corresponds to ISIC (Rev.4) divisions 05-43. It is comprised
+      of mining, manufacturing, construction, electricity, water, and gas industries. Value added is the
+      contribution to the economy by a producer or an industry or an institutional sector, which is estimated
+      by the total value of output produced and deducting the total value of intermediate consumption
+      of goods and services used to produce that output. This indicator is expressed in constant prices,
+      meaning the series has been adjusted to account for price changes over time. The reference year
+      for this adjustment is 2015. This indicator is expressed in United States dollars.
+- name: va_ser
+  label: Services, value added (constant 2015 US$)
+  sector: SER
+  measure: level
+  sources:
+  - source: wdi
+    code: NV.SRV.TOTL.KD
+    unit: constant 2015 US$
+    currency: USD
+    price_basis: constant
+    base_year: 2015
+    definition: Services industries correspond to ISIC (Rev. 4) divisions 45-99 and includes wholesale
+      and retail trade, repair of motor vehicles, hotels and restaurants, transport, storage and communication,
+      financial intermediation, real estate, renting and business activities, public administration and
+      defense, compulsory social security, education, health and social work, other community, social
+      and personal service activities, private households with employed persons, and extra-territorial
+      organizations and bodies. Value added is the contribution to the economy by a producer or an industry
+      or an institutional sector, which is estimated by the total value of output produced and deducting
+      the total value of intermediate consumption of goods and services used to produce that output. This
+      indicator is expressed in constant prices, meaning the series has been adjusted to account for price
+      changes over time. The reference year for this adjustment is 2015. This indicator is expressed in
+      United States dollars.
+- name: emp_agr_pct
+  label: Employment in agriculture (% of total employment) (modeled ILO estimate)
+  sector: AGR
+  measure: percent
+  sources:
+  - source: wdi
+    code: SL.AGR.EMPL.ZS
+    unit: '% of total employment'
+    price_basis: not_applicable
+    definition: Employment is defined as persons of working age who were engaged in any activity to produce
+      goods or provide services for pay or profit, whether at work during the reference period or not
+      at work due to temporary absence from a job, or to working-time arrangement. The agriculture sector
+      consists of activities in agriculture, hunting, forestry and fishing, in accordance with division
+      1 (ISIC 2) or categories A-B (ISIC 3) or category A (ISIC 4).
+  note: WDI gives sectoral employment only as a share of total employment, not as counts.
+- name: emp_ind_pct
+  label: Employment in industry (% of total employment) (modeled ILO estimate)
+  sector: IND
+  measure: percent
+  sources:
+  - source: wdi
+    code: SL.IND.EMPL.ZS
+    unit: '% of total employment'
+    price_basis: not_applicable
+    definition: Employment is defined as persons of working age who were engaged in any activity to produce
+      goods or provide services for pay or profit, whether at work during the reference period or not
+      at work due to temporary absence from a job, or to working-time arrangement. The industry sector
+      consists of mining and quarrying, manufacturing, construction, and public utilities (electricity,
+      gas, and water), in accordance with divisions 2-5 (ISIC 2) or categories C-F (ISIC 3) or categories
+      B-F (ISIC 4).
+  note: WDI gives sectoral employment only as a share of total employment, not as counts.
+- name: emp_ser_pct
+  label: Employment in services (% of total employment) (modeled ILO estimate)
+  sector: SER
+  measure: percent
+  sources:
+  - source: wdi
+    code: SL.SRV.EMPL.ZS
+    unit: '% of total employment'
+    price_basis: not_applicable
+    definition: Employment is defined as persons of working age who were engaged in any activity to produce
+      goods or provide services for pay or profit, whether at work during the reference period or not
+      at work due to temporary absence from a job, or to working-time arrangement. The services sector
+      consists of wholesale and retail trade and restaurants and hotels; transport, storage, and communications;
+      financing, insurance, real estate, and business services; and community, social, and personal services,
+      in accordance with divisions 6-9 (ISIC 2) or categories G-Q (ISIC 3) or categories G-U (ISIC 4).
+  note: WDI gives sectoral employment only as a share of total employment, not as counts.
+- name: emp_total
+  label: Number of persons engaged (in millions)
+  measure: level
+  sources:
+  - source: pwt
+    dataset: '11.0'
+    code: emp
+    unit: millions
+    price_basis: not_applicable
+    definition: Number of persons engaged (in millions)
+  note: Economy-wide employment total, included so sectoral shares can be converted to counts if desired.
+- name: gfcf
+  label: Gross fixed capital formation (constant 2015 US$)
+  measure: level
+  sources:
+  - source: wdi
+    code: NE.GDI.FTOT.KD
+    unit: constant 2015 US$
+    currency: USD
+    price_basis: constant
+    base_year: 2015
+    definition: Gross fixed capital formation includes acquisitions less disposals of fixed assets during
+      the accounting period, including certain specified expenditures on services that add to the value
+      of non-produced assets. This indicator is expressed in constant prices, meaning the series has been
+      adjusted to account for price changes over time. The reference year for this adjustment is 2015.
+      This indicator is expressed in United States dollars.
+- name: labsh
+  label: Share of labour compensation in GDP at current national prices
+  measure: share
+  sources:
+  - source: pwt
+    dataset: '11.0'
+    code: labsh
+    unit: share
+    price_basis: current
+    definition: Share of labour compensation in GDP at current national prices

@@ -209,7 +209,10 @@ def cmd_request(args: argparse.Namespace) -> int:
     print()
     shown = spec_path.relative_to(PROJECT_ROOT) if spec_path.is_relative_to(PROJECT_ROOT) else spec_path
     print(f"Next: review the files, then run  .\\pipeline check-spec {shown}")
-    print(f"(Claude used {result.tokens.get('input', 0):,} input and {result.tokens.get('output', 0):,} output tokens.)")
+    t = result.tokens
+    read = t.get("input", 0) + t.get("cache_write", 0) + t.get("cache_read", 0)
+    print(f"(Claude read {read:,} tokens, {t.get('cache_read', 0):,} of them from its cache, "
+          f"and wrote {t.get('output', 0):,}.)")
     return 0
 
 

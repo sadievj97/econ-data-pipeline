@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -77,7 +78,8 @@ sector_classification null when no variable has a sector.
 characters, and not iso3, country or year. Labels: at most 80 characters, worded from the \
 indicator name. The spec name becomes a folder name, so use the same rules.
 - Countries: ISO 3166 alpha-3 codes. Years: copy the start and end years from the request; use \
-null for any year the request does not state.
+null for any year the request does not state. The pipeline never picks years itself: a null year \
+is marked for the economist to fill in.
 - Do not add transformations (interpolation, extrapolation, splicing, rebasing, unit scaling). If \
 the request asks for one, describe it in open_questions so the economist can add it to the spec.
 - alternatives: for each variable, up to three other codes worth considering, each with a short \
@@ -352,7 +354,9 @@ def draft_spec(request: str, *, client: Any, config: Config, sources: Sources,
     model = config.models.spec_drafting
     messages: list[dict[str, Any]] = [{"role": "user", "content": f"Request: {request}"}]
     searches: list[str] = []
-    tokens = {"input": 0, "output": 0}
+    tokens = {"input": 0, "cache_write": 0, "cache_read": 0, "output": 0}
+    usage_fields = {"input": "input_tokens", "cache_write": "cache_creation_input_tokens",
+                    "cache_read": "cache_read_input_tokens", "output": "output_tokens"}
 
     for _ in range(max_rounds):
         response = client.beta.messages.create(
@@ -367,8 +371,8 @@ def draft_spec(request: str, *, client: Any, config: Config, sources: Sources,
             betas=[FALLBACK_BETA],
             fallbacks="default",
         )
-        tokens["input"] += getattr(response.usage, "input_tokens", 0) or 0
-        tokens["output"] += getattr(response.usage, "output_tokens", 0) or 0
+        for key, attr in usage_fields.items():
+            tokens[key] += getattr(response.usage, attr, 0) or 0
         if response.stop_reason == "refusal":
             raise DraftError("Claude declined to draft a spec for this request.")
         if response.stop_reason == "max_tokens":
@@ -432,7 +436,8 @@ def draft_yaml(result: DraftResult, review_file: str, drafted_on: str) -> str:
     lines.append(f"#   {step}. Change confirmed: false to confirmed: true.")
     if result.open_questions:
         lines.append("# Questions from the drafting step:")
-        lines += [f"#   - {q}" for q in result.open_questions]
+        for q in result.open_questions:
+            lines += textwrap.wrap(q, width=96, initial_indent="#   - ", subsequent_indent="#     ")
     body = yaml.safe_dump(result.spec, sort_keys=False, allow_unicode=True, width=100)
     return "\n".join(lines) + "\n\n" + body
 

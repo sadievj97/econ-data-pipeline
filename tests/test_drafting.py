@@ -152,7 +152,7 @@ def test_loop_searches_fixes_and_finishes(sources, config):
     result = draft_spec(REQUEST, client=claude, config=config, sources=sources, progress=lambda _: None)
     assert result.spec["name"] == "uzb_kaz_test"
     assert result.searches == ["wdi: agriculture value added"]
-    assert result.tokens == {"input": 30, "output": 15}
+    assert result.tokens == {"input": 30, "cache_write": 0, "cache_read": 0, "output": 15}
 
     first = claude.calls[0]
     assert first["model"] == config.models.spec_drafting
