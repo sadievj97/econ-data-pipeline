@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
 # Python
 .venv/
@@ -25,6 +27,18 @@ out/
 
 # Claude Code personal settings
 .claude/settings.local.json
+.claude/
+
+# R sessions, editors and operating systems
+.Rhistory
+.RData
+.Rproj.user/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log
 
 # The window shortcut points at this computer's folder; Econ Pipeline.cmd is the portable launcher
 *.lnk

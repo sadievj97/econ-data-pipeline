@@ -29,7 +29,7 @@ works for the international sources.
 
 ## Setup (once)
 
-Everything lives in this folder. If you move to a new computer:
+Everything lives in this folder. To set it up:
 
 1. Install Python 3.12 or newer from python.org (tick "Add python.exe to PATH").
 2. Open PowerShell in this folder (in File Explorer, click the address bar, type
@@ -54,10 +54,30 @@ py -3 -m venv .venv
 It reports Python, the settings file, whether your key is set (never the key
 itself), and whether R is installed.
 
+### What you supply yourself
+
+This repository holds the code, example specs and small test samples only.
+No downloaded data, results or keys are included:
+
+- **Your Anthropic API key** goes in `.env` (step 3 above). It is needed only
+  for the `request` step; every other command works without it.
+- **Downloaded data** (`data\raw\`) and **results** (`out\`) are created on
+  your computer the first time you build a spec.
+- **Hand-downloaded files** (for example from a statistics office website)
+  go in `data\manual\` with a note on where each came from; see
+  `data\manual\README.md`.
+- `specs\uzb_kaz_sectoral_2000_2023.lock.json` pins the exact files the
+  original author downloaded. You will not have those files, so the first
+  time you build that spec, add `--refresh` to download your own copies
+  (in the window, tick *Download fresh data*); the lock file is then updated
+  to match them. If a source has revised its data since, a value in
+  `specs\uzb_kaz_sectoral_2000_2023.known_values.yaml` may no longer match;
+  the validation report says which one.
+
 ## The window (easiest)
 
-Double-click **Econ Pipeline** (the shortcut in this folder; `Econ Pipeline.cmd`
-does the same). The window has four tabs that follow the workflow:
+Double-click **`Econ Pipeline.cmd`** in this folder (you can also make a
+desktop shortcut to it). The window has four tabs that follow the workflow:
 
 1. **Ask for data**: type your request and click *Draft a spec*.
 2. **Review and build**: your specs with their status. *Open in Notepad* to
@@ -228,7 +248,7 @@ labor productivity only.
 - **An R script stops with "CHECK FAILED"**: a file in `out\` was changed or is
   incomplete. Rebuild the spec; the message names the check that failed.
 - **Stata** (only with `outputs: stata: true`): the .do files are written for
-  Stata 14 or newer but have not been run on this computer, which has no Stata.
+  Stata 14 or newer but have not been tested in Stata yet.
 
 ## License
 

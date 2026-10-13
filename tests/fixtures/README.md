@@ -20,5 +20,7 @@ Small copies of real source files, so tests run without internet. Made on
 - `faostat/`: the FAOSTAT dataset list cut to CS, and the CS capital stock zip
   cut to Uzbekistan and Kazakhstan (FAO, bulks-faostat.fao.org, CC BY 4.0).
 - `siat/`: the Statistics Agency of Uzbekistan indicator tree cut to the branch
-  holding tables 548, 1209 and 1584, and those three tables, unchanged
+  holding tables 548, 1209 and 1584, and those three tables, unchanged except
+  that the responsible officer's name, phone number and email in each table's
+  metadata were replaced with "[removed]" for this public copy
   (api.siat.stat.uz, retrieved 2026-10-12).
