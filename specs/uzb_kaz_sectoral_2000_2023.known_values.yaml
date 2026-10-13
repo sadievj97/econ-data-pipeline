@@ -35,3 +35,8 @@ values:
   value: 3282.039
   source: 'DF_EMP_2EMP_SEX_ECO_NB: ILO SDMX service, dataflow DF_EMP_2EMP_SEX_ECO_NB, series UZB.A..SEX_T.ECO_SECTOR_AGR (unit
     multiplier 10^3), data/raw/ilostat/sdmx/DF_EMP_2EMP_SEX_ECO_NB/UZB.A..SEX_T.ECO_SECTOR_AGR/20261012T203251Z/data.csv'
+- variable: labsh
+  iso3: KAZ
+  year: 2010
+  value: 0.418811053037643
+  source: 'labsh: Penn World Table 11.0 Excel workbook pwt110.xlsx (doi:10.34894/FABVLR), data/raw/pwt/11.0/pwt110.xlsx/20261013T150259Z/pwt110.xlsx'
