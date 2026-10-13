@@ -28,3 +28,6 @@ out/
 
 # The window shortcut points at this computer's folder; Econ Pipeline.cmd is the portable launcher
 *.lnk
+
+# Personal working notes for Claude Code (kept on this computer, not published)
+CLAUDE.md

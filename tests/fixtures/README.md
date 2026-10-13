@@ -16,7 +16,7 @@ Small copies of real source files, so tests run without internet. Made on
   retrieved 2026-10-12).
 - `imf/`: the IMF WEO structure with its indicator code list cut to four codes,
   and the WEO NGDP_RPCH replies for UZB and KAZ, unchanged (api.imf.org,
-  retrieved 2026-10-12; IMF terms: https://www.imf.org/external/terms.htm).
+  retrieved 2026-10-12). Source: International Monetary Fund. IMF statistical data may be copied and redistributed with this credit: https://www.imf.org/en/About/copyright-and-terms
 - `faostat/`: the FAOSTAT dataset list cut to CS, and the CS capital stock zip
   cut to Uzbekistan and Kazakhstan (FAO, bulks-faostat.fao.org, CC BY 4.0).
 - `siat/`: the Statistics Agency of Uzbekistan indicator tree cut to the branch

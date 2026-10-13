@@ -229,3 +229,11 @@ labor productivity only.
   incomplete. Rebuild the spec; the message names the check that failed.
 - **Stata** (only with `outputs: stata: true`): the .do files are written for
   Stata 14 or newer but have not been run on this computer, which has no Stata.
+
+## License
+
+The code is released under the MIT License (see `LICENSE`). The data you
+download stays under its sources' terms: World Bank WDI, PWT, ILOSTAT and
+FAOSTAT are CC BY 4.0, and IMF data may be reused with the credit "Source:
+International Monetary Fund". The small samples in `tests/fixtures/` carry the
+same terms and credits (see `tests/fixtures/README.md`).
