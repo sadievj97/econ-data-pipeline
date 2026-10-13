@@ -54,7 +54,23 @@ py -3 -m venv .venv
 It reports Python, the settings file, whether your key is set (never the key
 itself), and whether R is installed.
 
-## Workflow
+## The window (easiest)
+
+Double-click **Econ Pipeline** (the shortcut in this folder; `Econ Pipeline.cmd`
+does the same). The window has four tabs that follow the workflow:
+
+1. **Ask for data**: type your request and click *Draft a spec*.
+2. **Review and build**: your specs with their status. *Open in Notepad* to
+   review or edit, then *Check*, *Confirm* and *Build*. Tick *Download fresh
+   data* only when you want newer data.
+3. **Results**: buttons that open the data in RStudio, the validation report,
+   the codebook, growth accounting, the data log, or the results folder.
+4. **Find indicators**: search a source, or list the filter choices of a code.
+
+Messages at the bottom show exactly what each step is doing; *Stop* cancels a
+step. Every button runs the same command as the command line below.
+
+## Workflow (command line)
 
 **1. Ask for data.** Claude searches the catalogs and drafts a spec:
 
@@ -97,6 +113,8 @@ records the new files).
 | `.\pipeline search <source> "<words>"` | search a catalog: `wdi`, `pwt`, `ilostat`, `imf`, `faostat`, `nso_uzb` |
 | `.\pipeline describe <source> <code> [--dataset D] [--country ISO3]` | the filter choices an indicator offers for a country |
 | `.\pipeline check-spec <spec>` | check a spec and summarize it |
+| `.\pipeline confirm <spec>` | mark a reviewed spec as confirmed (only if it passes every check) |
+| `.\pipeline app` | open the window |
 | `.\pipeline fetch <spec> [--refresh]` | download (or reuse) the raw data and compare units with the spec |
 | `.\pipeline build <spec> [--refresh]` | fetch, harmonize, validate, write all outputs |
 

@@ -52,6 +52,36 @@ def cmd_check_spec(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_confirm(args: argparse.Namespace) -> int:
+    import re
+
+    path = Path(args.spec)
+    try:
+        spec = load_spec(path)
+    except SpecError as exc:
+        print(exc)
+        print("Fix these first (and fill in any FILL_ME), then confirm again.")
+        return 1
+    if spec.confirmed:
+        print(f"{path.name} is already confirmed.")
+        return 0
+    text = path.read_text(encoding="utf-8-sig")
+    new, count = re.subn(r"(?m)^confirmed:\s*false\b", "confirmed: true", text, count=1)
+    if count != 1:
+        print(f"Could not find the line 'confirmed: false' in {path.name}; open it and change it by hand.")
+        return 1
+    path.write_text(new, encoding="utf-8")
+    print(f"{path.name} is confirmed. Build it to make the dataset.")
+    return 0
+
+
+def cmd_app(args: argparse.Namespace) -> int:
+    from .app import main as app_main
+
+    app_main()
+    return 0
+
+
 def cmd_search(args: argparse.Namespace) -> int:
     from .catalog import search
 
@@ -337,6 +367,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("check-spec", help="check a spec file and summarize it")
     p.add_argument("spec", help="path to a spec .yaml file")
     p.set_defaults(func=cmd_check_spec)
+
+    p = sub.add_parser("confirm", help="mark a reviewed spec as confirmed (only if it passes every check)")
+    p.add_argument("spec", help="path to a spec .yaml file")
+    p.set_defaults(func=cmd_confirm)
+
+    p = sub.add_parser("app", help="open the pipeline's window")
+    p.set_defaults(func=cmd_app)
 
     p = sub.add_parser("fetch", help="download (or reuse cached) raw data for a spec and check units")
     p.add_argument("spec", help="path to a spec .yaml file")

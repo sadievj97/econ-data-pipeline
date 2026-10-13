@@ -25,3 +25,6 @@ out/
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# The window shortcut points at this computer's folder; Econ Pipeline.cmd is the portable launcher
+*.lnk
